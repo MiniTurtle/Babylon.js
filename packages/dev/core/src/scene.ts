@@ -89,6 +89,7 @@ import type { Node } from "./node";
 import type { Animation } from "./Animations/animation";
 import type { Animatable } from "./Animations/animatable";
 import type { Texture } from "./Materials/Textures/texture";
+import type { DebugLayer } from "./Debug/debugLayer";
 import { PointerPickingConfiguration } from "./Inputs/pointerPickingConfiguration";
 
 /**

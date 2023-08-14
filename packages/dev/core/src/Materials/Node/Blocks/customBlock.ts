@@ -143,7 +143,8 @@ export class CustomBlock extends NodeMaterialBlock {
                     new NodeMaterialConnectionPointCustomObject(input.name, this, NodeMaterialConnectionPointDirection.Input, ImageSourceBlock, "ImageSourceBlock")
                 );
             } else {
-                this.registerInput(input.name, type);
+                // this.registerInput(input.name, type);
+                this.registerInput(input.name, type, input.isOptional, undefined, undefined, true);
             }
 
             Object.defineProperty(this, input.name, {

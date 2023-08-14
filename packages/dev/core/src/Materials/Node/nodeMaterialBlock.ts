@@ -283,6 +283,7 @@ export class NodeMaterialBlock {
         point.type = type;
         point.isOptional = isOptional;
         point.hasDefaultValue = hasDefaultValue || false;
+
         if (target) {
             point.target = target;
         }
