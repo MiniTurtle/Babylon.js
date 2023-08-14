@@ -61,37 +61,35 @@ import type { IClipPlanesHolder } from "./Misc/interfaces/iClipPlanesHolder";
 import type { IPointerEvent } from "./Events/deviceInputEvents";
 import { LightConstants } from "./Lights/lightConstants";
 import { _ObserveArray } from "./Misc/arrayTools";
-
-declare type Ray = import("./Culling/ray").Ray;
-declare type TrianglePickingPredicate = import("./Culling/ray").TrianglePickingPredicate;
-declare type Animation = import("./Animations/animation").Animation;
-declare type Animatable = import("./Animations/animatable").Animatable;
-declare type AnimationGroup = import("./Animations/animationGroup").AnimationGroup;
-declare type AnimationPropertiesOverride = import("./Animations/animationPropertiesOverride").AnimationPropertiesOverride;
-declare type Collider = import("./Collisions/collider").Collider;
-declare type PostProcess = import("./PostProcesses/postProcess").PostProcess;
-declare type Material = import("./Materials/material").Material;
-declare type AbstractMesh = import("./Meshes/abstractMesh").AbstractMesh;
-declare type Light = import("./Lights/light").Light;
-declare type Camera = import("./Cameras/camera").Camera;
-declare type Texture = import("./Materials/Textures/texture").Texture;
-declare type MultiMaterial = import("./Materials/multiMaterial").MultiMaterial;
-declare type BaseTexture = import("./Materials/Textures/baseTexture").BaseTexture;
-declare type TransformNode = import("./Meshes/transformNode").TransformNode;
-declare type Skeleton = import("./Bones/skeleton").Skeleton;
-declare type Bone = import("./Bones/bone").Bone;
-declare type SubMesh = import("./Meshes/subMesh").SubMesh;
-declare type Mesh = import("./Meshes/mesh").Mesh;
-declare type Node = import("./node").Node;
-declare type Geometry = import("./Meshes/geometry").Geometry;
-declare type RenderTargetTexture = import("./Materials/Textures/renderTargetTexture").RenderTargetTexture;
-declare type MorphTargetManager = import("./Morph/morphTargetManager").MorphTargetManager;
-declare type Effect = import("./Materials/effect").Effect;
-declare type MorphTarget = import("./Morph/morphTarget").MorphTarget;
-declare type WebVRFreeCamera = import("./Cameras/VR/webVRCamera").WebVRFreeCamera;
-declare type PerformanceViewerCollector = import("./Misc/PerformanceViewer/performanceViewerCollector").PerformanceViewerCollector;
-declare type IAction = import("./Actions/action").IAction;
-declare type DebugLayer = import("./Debug/debugLayer").DebugLayer;
+import type { IAction } from "./Actions/action";
+import type { AnimationPropertiesOverride } from "./Animations/animationPropertiesOverride";
+import type { AnimationGroup } from "./Animations/animationGroup";
+import type { Skeleton } from "./Bones/skeleton";
+import type { Bone } from "./Bones/bone";
+import type { Camera } from "./Cameras/camera";
+import type { WebVRFreeCamera } from "./Cameras/VR/webVRCamera";
+import type { Collider } from "./Collisions/collider";
+import type { Ray, TrianglePickingPredicate } from "./Culling/ray";
+import type { Light } from "./Lights/light";
+import type { PerformanceViewerCollector } from "./Misc/PerformanceViewer/performanceViewerCollector";
+import type { MorphTarget } from "./Morph/morphTarget";
+import type { MorphTargetManager } from "./Morph/morphTargetManager";
+import type { PostProcess } from "./PostProcesses/postProcess";
+import type { Material } from "./Materials/material";
+import type { BaseTexture } from "./Materials/Textures/baseTexture";
+import type { Geometry } from "./Meshes/geometry";
+import type { TransformNode } from "./Meshes/transformNode";
+import type { AbstractMesh } from "./Meshes/abstractMesh";
+import type { MultiMaterial } from "./Materials/multiMaterial";
+import type { Effect } from "./Materials/effect";
+import type { RenderTargetTexture } from "./Materials/Textures/renderTargetTexture";
+import type { Mesh } from "./Meshes/mesh";
+import type { SubMesh } from "./Meshes/subMesh";
+import type { Node } from "./node";
+import type { Animation } from "./Animations/animation";
+import type { Animatable } from "./Animations/animatable";
+import type { Texture } from "./Materials/Textures/texture";
+import { PointerPickingConfiguration } from "./Inputs/pointerPickingConfiguration";
 
 /**
  * Define an interface for all classes that will hold resources
@@ -751,34 +749,106 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
     public _registeredForLateAnimationBindings = new SmartArrayNoDuplicate<any>(256);
 
     // Pointers
+    private _pointerPickingConfiguration = new PointerPickingConfiguration();
+
     /**
      * Gets or sets a predicate used to select candidate meshes for a pointer down event
      */
-    public pointerDownPredicate: (Mesh: AbstractMesh) => boolean;
+    public get pointerDownPredicate() {
+        return this._pointerPickingConfiguration.pointerDownPredicate;
+    }
+
+    public set pointerDownPredicate(value) {
+        this._pointerPickingConfiguration.pointerDownPredicate = value;
+    }
+
     /**
      * Gets or sets a predicate used to select candidate meshes for a pointer up event
      */
-    public pointerUpPredicate: (Mesh: AbstractMesh) => boolean;
+    public get pointerUpPredicate() {
+        return this._pointerPickingConfiguration.pointerUpPredicate;
+    }
+
+    public set pointerUpPredicate(value) {
+        this._pointerPickingConfiguration.pointerUpPredicate = value;
+    }
 
     /**
      * Gets or sets a predicate used to select candidate meshes for a pointer move event
      */
-    public pointerMovePredicate: (Mesh: AbstractMesh) => boolean;
+    public get pointerMovePredicate() {
+        return this._pointerPickingConfiguration.pointerMovePredicate;
+    }
+
+    public set pointerMovePredicate(value) {
+        this._pointerPickingConfiguration.pointerMovePredicate = value;
+    }
+
+    /**
+     * Gets or sets a predicate used to select candidate meshes for a pointer down event
+     */
+    public get pointerDownFastCheck() {
+        return this._pointerPickingConfiguration.pointerDownFastCheck;
+    }
+
+    public set pointerDownFastCheck(value) {
+        this._pointerPickingConfiguration.pointerDownFastCheck = value;
+    }
+
+    /**
+     * Gets or sets a predicate used to select candidate meshes for a pointer up event
+     */
+    public get pointerUpFastCheck() {
+        return this._pointerPickingConfiguration.pointerUpFastCheck;
+    }
+
+    public set pointerUpFastCheck(value) {
+        this._pointerPickingConfiguration.pointerUpFastCheck = value;
+    }
+
+    /**
+     * Gets or sets a predicate used to select candidate meshes for a pointer move event
+     */
+    public get pointerMoveFastCheck() {
+        return this._pointerPickingConfiguration.pointerMoveFastCheck;
+    }
+
+    public set pointerMoveFastCheck(value) {
+        this._pointerPickingConfiguration.pointerMoveFastCheck = value;
+    }
 
     /**
      * Gets or sets a boolean indicating if the user want to entirely skip the picking phase when a pointer move event occurs.
      */
-    public skipPointerMovePicking = false;
+    public get skipPointerMovePicking() {
+        return this._pointerPickingConfiguration.skipPointerMovePicking;
+    }
+
+    public set skipPointerMovePicking(value) {
+        this._pointerPickingConfiguration.skipPointerMovePicking = value;
+    }
 
     /**
      * Gets or sets a boolean indicating if the user want to entirely skip the picking phase when a pointer down event occurs.
      */
-    public skipPointerDownPicking = false;
+    public get skipPointerDownPicking() {
+        return this._pointerPickingConfiguration.skipPointerDownPicking;
+    }
+
+    public set skipPointerDownPicking(value) {
+        this._pointerPickingConfiguration.skipPointerDownPicking = value;
+    }
 
     /**
      * Gets or sets a boolean indicating if the user want to entirely skip the picking phase when a pointer up event occurs.  Off by default.
      */
-    public skipPointerUpPicking = false;
+    public get skipPointerUpPicking() {
+        return this._pointerPickingConfiguration.skipPointerUpPicking;
+    }
+
+    public set skipPointerUpPicking(value) {
+        this._pointerPickingConfiguration.skipPointerUpPicking = value;
+    }
 
     /** Callback called when a pointer move is detected */
     public onPointerMove?: (evt: IPointerEvent, pickInfo: PickingInfo, type: PointerEventTypes) => void;
@@ -1931,12 +2001,19 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
         let index: number;
         const engine = this.getEngine();
 
+        const currentRenderPassId = engine.currentRenderPassId;
+
+        engine.currentRenderPassId = this.activeCamera?.renderPassId ?? currentRenderPassId;
+
         let isReady = true;
 
         // Pending data
         if (this._pendingData.length > 0) {
             isReady = false;
         }
+
+        // Ensures that the pre-pass renderer is enabled if it is to be enabled.
+        this.prePassRenderer?.update();
 
         // Meshes
         if (checkRenderTargets) {
@@ -1999,21 +2076,12 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
             }
         }
 
-        if (!isReady) {
-            return false;
-        }
-
-        // Effects
-        if (!engine.areAllEffectsReady()) {
-            return false;
-        }
-
         // Render targets
         if (checkRenderTargets) {
             for (index = 0; index < this._materialsRenderTargets.length; ++index) {
                 const rtt = this._materialsRenderTargets.data[index];
                 if (!rtt.isReadyForRendering()) {
-                    return false;
+                    isReady = false;
                 }
             }
         }
@@ -2023,7 +2091,7 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
             const geometry = this.geometries[index];
 
             if (geometry.delayLoadState === Constants.DELAYLOADSTATE_LOADING) {
-                return false;
+                isReady = false;
             }
         }
 
@@ -2031,23 +2099,39 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
         if (this.activeCameras && this.activeCameras.length > 0) {
             for (const camera of this.activeCameras) {
                 if (!camera.isReady(true)) {
-                    return false;
+                    isReady = false;
                 }
             }
         } else if (this.activeCamera) {
             if (!this.activeCamera.isReady(true)) {
-                return false;
+                isReady = false;
             }
         }
 
         // Particles
         for (const particleSystem of this.particleSystems) {
             if (!particleSystem.isReady()) {
-                return false;
+                isReady = false;
             }
         }
 
-        return true;
+        // Layers
+        if (this.layers) {
+            for (const layer of this.layers) {
+                if (!layer.isReady()) {
+                    isReady = false;
+                }
+            }
+        }
+
+        // Effects
+        if (!engine.areAllEffectsReady()) {
+            isReady = false;
+        }
+
+        engine.currentRenderPassId = currentRenderPassId;
+
+        return isReady;
     }
 
     /** Resets all cached information relative to material (including effect and visibility) */
@@ -3334,6 +3418,21 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
     }
 
     /**
+     * Gets a the last transform node using a given Id
+     * @param id defines the Id to search for
+     * @returns the found mesh or null if not found at all.
+     */
+    public getLastTransformNodeById(id: string): Nullable<TransformNode> {
+        for (let index = this.transformNodes.length - 1; index >= 0; index--) {
+            if (this.transformNodes[index].id === id) {
+                return this.transformNodes[index];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Gets a the last added node (Mesh, Camera, Light) using a given Id
      * @param id defines the Id to search for
      * @returns the found node or null if not found at all
@@ -3985,6 +4084,8 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
                 mesh._postActivate();
             }
         }
+
+        this.onAfterActiveMeshesEvaluationObservable.notifyObservers(this);
 
         // Particle systems
         if (this.particlesEnabled) {
@@ -4670,6 +4771,11 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
         this.importedMeshesFiles = new Array<string>();
 
         if (this.stopAllAnimations) {
+            // Ensures that no animatable notifies a callback that could start a new animation group, constantly adding new animatables to the active list...
+            this._activeAnimatables.forEach((animatable) => {
+                animatable.onAnimationEndObservable.clear();
+                animatable.onAnimationEnd = null;
+            });
             this.stopAllAnimations();
         }
 
@@ -5017,7 +5123,9 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
         return new PickingInfo();
     }
 
-    /** Use the given ray to pick a mesh in the scene
+    /**
+     * Use the given ray to pick a mesh in the scene. A mesh triangle can be picked both from its front and back sides,
+     * irrespective of orientation.
      * @param ray The ray to use to pick meshes
      * @param predicate Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must have isPickable set to true
      * @param fastCheck defines if the first intersection will be used (and not the closest)
@@ -5029,7 +5137,8 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
     }
 
     /**
-     * Launch a ray to try to pick a mesh in the scene
+     * Launch a ray to try to pick a mesh in the scene. A mesh triangle can be picked both from its front and back sides,
+     * irrespective of orientation.
      * @param x X position on screen
      * @param y Y position on screen
      * @param predicate Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must be enabled, visible and with isPickable set to true
@@ -5406,5 +5515,198 @@ export class Scene extends AbstractScene implements IAnimatable, IClipPlanesHold
      */
     public getPerfCollector(): PerformanceViewerCollector {
         throw _WarnImport("performanceViewerSceneExtension");
+    }
+
+    // deprecated
+
+    /**
+     * Sets the active camera of the scene using its Id
+     * @param id defines the camera's Id
+     * @returns the new active camera or null if none found.
+     * @deprecated Please use setActiveCameraById instead
+     */
+    setActiveCameraByID(id: string): Nullable<Camera> {
+        return this.setActiveCameraById(id);
+    }
+    /**
+     * Get a material using its id
+     * @param id defines the material's Id
+     * @returns the material or null if none found.
+     * @deprecated Please use getMaterialById instead
+     */
+    getMaterialByID(id: string): Nullable<Material> {
+        return this.getMaterialById(id);
+    }
+    /**
+     * Gets a the last added material using a given id
+     * @param id defines the material's Id
+     * @returns the last material with the given id or null if none found.
+     * @deprecated Please use getLastMaterialById instead
+     */
+    getLastMaterialByID(id: string): Nullable<Material> {
+        return this.getLastMaterialById(id);
+    }
+
+    /**
+     * Get a texture using its unique id
+     * @param uniqueId defines the texture's unique id
+     * @returns the texture or null if none found.
+     * @deprecated Please use getTextureByUniqueId instead
+     */
+    getTextureByUniqueID(uniqueId: number): Nullable<BaseTexture> {
+        return this.getTextureByUniqueId(uniqueId);
+    }
+    /**
+     * Gets a camera using its Id
+     * @param id defines the Id to look for
+     * @returns the camera or null if not found
+     * @deprecated Please use getCameraById instead
+     */
+    getCameraByID(id: string): Nullable<Camera> {
+        return this.getCameraById(id);
+    }
+    /**
+     * Gets a camera using its unique Id
+     * @param uniqueId defines the unique Id to look for
+     * @returns the camera or null if not found
+     * @deprecated Please use getCameraByUniqueId instead
+     */
+    getCameraByUniqueID(uniqueId: number): Nullable<Camera> {
+        return this.getCameraByUniqueId(uniqueId);
+    }
+    /**
+     * Gets a bone using its Id
+     * @param id defines the bone's Id
+     * @returns the bone or null if not found
+     * @deprecated Please use getBoneById instead
+     */
+    getBoneByID(id: string): Nullable<Bone> {
+        return this.getBoneById(id);
+    }
+    /**
+     * Gets a light node using its Id
+     * @param id defines the light's Id
+     * @returns the light or null if none found.
+     * @deprecated Please use getLightById instead
+     */
+    getLightByID(id: string): Nullable<Light> {
+        return this.getLightById(id);
+    }
+    /**
+     * Gets a light node using its scene-generated unique Id
+     * @param uniqueId defines the light's unique Id
+     * @returns the light or null if none found.
+     * @deprecated Please use getLightByUniqueId instead
+     */
+    getLightByUniqueID(uniqueId: number): Nullable<Light> {
+        return this.getLightByUniqueId(uniqueId);
+    }
+    /**
+     * Gets a particle system by Id
+     * @param id defines the particle system Id
+     * @returns the corresponding system or null if none found
+     * @deprecated Please use getParticleSystemById instead
+     */
+    getParticleSystemByID(id: string): Nullable<IParticleSystem> {
+        return this.getParticleSystemById(id);
+    }
+    /**
+     * Gets a geometry using its Id
+     * @param id defines the geometry's Id
+     * @returns the geometry or null if none found.
+     * @deprecated Please use getGeometryById instead
+     */
+    getGeometryByID(id: string): Nullable<Geometry> {
+        return this.getGeometryById(id);
+    }
+    /**
+     * Gets the first added mesh found of a given Id
+     * @param id defines the Id to search for
+     * @returns the mesh found or null if not found at all
+     * @deprecated Please use getMeshById instead
+     */
+    getMeshByID(id: string): Nullable<AbstractMesh> {
+        return this.getMeshById(id);
+    }
+    /**
+     * Gets a mesh with its auto-generated unique Id
+     * @param uniqueId defines the unique Id to search for
+     * @returns the found mesh or null if not found at all.
+     * @deprecated Please use getMeshByUniqueId instead
+     */
+    getMeshByUniqueID(uniqueId: number): Nullable<AbstractMesh> {
+        return this.getMeshByUniqueId(uniqueId);
+    }
+    /**
+     * Gets a the last added mesh using a given Id
+     * @param id defines the Id to search for
+     * @returns the found mesh or null if not found at all.
+     * @deprecated Please use getLastMeshById instead
+     */
+    getLastMeshByID(id: string): Nullable<AbstractMesh> {
+        return this.getLastMeshById(id);
+    }
+    /**
+     * Gets a list of meshes using their Id
+     * @param id defines the Id to search for
+     * @returns a list of meshes
+     * @deprecated Please use getMeshesById instead
+     */
+    getMeshesByID(id: string): Array<AbstractMesh> {
+        return this.getMeshesById(id);
+    }
+    /**
+     * Gets the first added transform node found of a given Id
+     * @param id defines the Id to search for
+     * @returns the found transform node or null if not found at all.
+     * @deprecated Please use getTransformNodeById instead
+     */
+    getTransformNodeByID(id: string): Nullable<TransformNode> {
+        return this.getTransformNodeById(id);
+    }
+    /**
+     * Gets a transform node with its auto-generated unique Id
+     * @param uniqueId defines the unique Id to search for
+     * @returns the found transform node or null if not found at all.
+     * @deprecated Please use getTransformNodeByUniqueId instead
+     */
+    getTransformNodeByUniqueID(uniqueId: number): Nullable<TransformNode> {
+        return this.getTransformNodeByUniqueId(uniqueId);
+    }
+    /**
+     * Gets a list of transform nodes using their Id
+     * @param id defines the Id to search for
+     * @returns a list of transform nodes
+     * @deprecated Please use getTransformNodesById instead
+     */
+    getTransformNodesByID(id: string): Array<TransformNode> {
+        return this.getTransformNodesById(id);
+    }
+    /**
+     * Gets a node (Mesh, Camera, Light) using a given Id
+     * @param id defines the Id to search for
+     * @returns the found node or null if not found at all
+     * @deprecated Please use getNodeById instead
+     */
+    getNodeByID(id: string): Nullable<Node> {
+        return this.getNodeById(id);
+    }
+    /**
+     * Gets a the last added node (Mesh, Camera, Light) using a given Id
+     * @param id defines the Id to search for
+     * @returns the found node or null if not found at all
+     * @deprecated Please use getLastEntryById instead
+     */
+    getLastEntryByID(id: string): Nullable<Node> {
+        return this.getLastEntryById(id);
+    }
+    /**
+     * Gets a skeleton using a given Id (if many are found, this function will pick the last one)
+     * @param id defines the Id to search for
+     * @returns the found skeleton or null if not found at all.
+     * @deprecated Please use getLastSkeletonById instead
+     */
+    getLastSkeletonByID(id: string): Nullable<Skeleton> {
+        return this.getLastSkeletonById(id);
     }
 }

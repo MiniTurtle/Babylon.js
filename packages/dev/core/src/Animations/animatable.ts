@@ -117,6 +117,7 @@ export class Animatable {
      * @param animations defines a group of animation to add to the new Animatable
      * @param onAnimationLoop defines a callback to call when animation loops
      * @param isAdditive defines whether the animation should be evaluated additively
+     * @param playOrder defines the order in which this animatable should be processed in the list of active animatables (default: 0)
      */
     constructor(
         scene: Scene,
@@ -135,7 +136,9 @@ export class Animatable {
         /** defines a callback to call when animation loops */
         public onAnimationLoop?: Nullable<() => void>,
         /** defines whether the animation should be evaluated additively */
-        public isAdditive: boolean = false
+        public isAdditive: boolean = false,
+        /** defines the order in which this animatable should be processed in the list of active animatables (default: 0) */
+        public playOrder = 0
     ) {
         this._scene = scene;
         if (animations) {
@@ -357,6 +360,12 @@ export class Animatable {
                 if (!useGlobalSplice) {
                     this._scene._activeAnimatables.splice(index, 1);
                 }
+                const runtimeAnimations = this._runtimeAnimations;
+
+                for (let index = 0; index < runtimeAnimations.length; index++) {
+                    runtimeAnimations[index].dispose();
+                }
+
                 this._runtimeAnimations.length = 0;
 
                 this._raiseOnAnimationEnd();
@@ -482,6 +491,11 @@ declare module "../scene" {
 
         /** @internal */
         _processLateAnimationBindings(): void;
+
+        /**
+         * Sort active animatables based on their playOrder property
+         */
+        sortActiveAnimatables(): void;
 
         /**
          * Will start the animation sequence of a given target
@@ -685,6 +699,12 @@ Scene.prototype._animate = function (): void {
 
     // Late animation bindings
     this._processLateAnimationBindings();
+};
+
+Scene.prototype.sortActiveAnimatables = function (): void {
+    this._activeAnimatables.sort((a, b) => {
+        return a.playOrder - b.playOrder;
+    });
 };
 
 Scene.prototype.beginWeightedAnimation = function (

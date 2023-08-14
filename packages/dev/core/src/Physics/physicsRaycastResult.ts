@@ -2,6 +2,17 @@ import { Vector3 } from "../Maths/math.vector";
 import type { PhysicsBody } from "./v2/physicsBody";
 
 /**
+ * Interface for query parameters in the raycast function.
+ * @see the "Collision Filtering" section in https://github.com/eoineoineoin/glTF/tree/MSFT_RigidBodies/extensions/2.0/Vendor/MSFT_collision_primitives
+ */
+export interface IRaycastQuery {
+    /** Membership mask */
+    membership?: number;
+    /** CollideWith mask */
+    collideWith?: number;
+}
+
+/**
  * Holds the data for the raycast result
  * @see https://doc.babylonjs.com/features/featuresDeepDive/physics/usingPhysicsEngine
  */
@@ -13,6 +24,7 @@ export class PhysicsRaycastResult {
     private _hitPointWorld: Vector3 = Vector3.Zero();
     private _rayFromWorld: Vector3 = Vector3.Zero();
     private _rayToWorld: Vector3 = Vector3.Zero();
+    private _triangleIndex: number = -1;
 
     /**
      * The Physics body that the ray hit
@@ -65,15 +77,23 @@ export class PhysicsRaycastResult {
         return this._rayToWorld;
     }
 
+    /*
+     * The index of the original triangle which was hit. Will be -1 if contact point is not on a mesh shape
+     */
+    get triangleIndex(): number {
+        return this._triangleIndex;
+    }
+
     /**
      * Sets the hit data (normal & point in world space)
      * @param hitNormalWorld defines the normal in world space
      * @param hitPointWorld defines the point in world space
      */
-    public setHitData(hitNormalWorld: IXYZ, hitPointWorld: IXYZ) {
+    public setHitData(hitNormalWorld: IXYZ, hitPointWorld: IXYZ, triangleIndex?: number) {
         this._hasHit = true;
-        this._hitNormalWorld = new Vector3(hitNormalWorld.x, hitNormalWorld.y, hitNormalWorld.z);
-        this._hitPointWorld = new Vector3(hitPointWorld.x, hitPointWorld.y, hitPointWorld.z);
+        this._hitNormalWorld.set(hitNormalWorld.x, hitNormalWorld.y, hitNormalWorld.z);
+        this._hitPointWorld.set(hitPointWorld.x, hitPointWorld.y, hitPointWorld.z);
+        this._triangleIndex = triangleIndex ?? -1;
     }
 
     /**
@@ -97,14 +117,18 @@ export class PhysicsRaycastResult {
      * @param to The to point on world space
      */
     public reset(from: Vector3 = Vector3.Zero(), to: Vector3 = Vector3.Zero()) {
-        this._rayFromWorld = from;
-        this._rayToWorld = to;
+        this._rayFromWorld.copyFrom(from);
+        this._rayToWorld.copyFrom(to);
 
         this._hasHit = false;
         this._hitDistance = 0;
 
-        this._hitNormalWorld = Vector3.Zero();
-        this._hitPointWorld = Vector3.Zero();
+        this._hitNormalWorld.setAll(0);
+        this._hitPointWorld.setAll(0);
+        this._triangleIndex = -1;
+
+        this.body = undefined;
+        this.bodyIndex = undefined;
     }
 }
 

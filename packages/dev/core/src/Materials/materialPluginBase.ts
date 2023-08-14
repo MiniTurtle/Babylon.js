@@ -4,17 +4,17 @@ import { MaterialPluginManager } from "./materialPluginManager";
 import type { SmartArray } from "../Misc/smartArray";
 import { Constants } from "../Engines/constants";
 
-declare type Engine = import("../Engines/engine").Engine;
-declare type Scene = import("../scene").Scene;
-declare type AbstractMesh = import("../Meshes/abstractMesh").AbstractMesh;
-declare type SubMesh = import("../Meshes/subMesh").SubMesh;
-declare type IAnimatable = import("../Animations/animatable.interface").IAnimatable;
-declare type UniformBuffer = import("./uniformBuffer").UniformBuffer;
-declare type EffectFallbacks = import("./effectFallbacks").EffectFallbacks;
-declare type MaterialDefines = import("./materialDefines").MaterialDefines;
-declare type Material = import("./material").Material;
-declare type BaseTexture = import("./Textures/baseTexture").BaseTexture;
-declare type RenderTargetTexture = import("./Textures/renderTargetTexture").RenderTargetTexture;
+import type { Engine } from "../Engines/engine";
+import type { Scene } from "../scene";
+import type { AbstractMesh } from "../Meshes/abstractMesh";
+import type { SubMesh } from "../Meshes/subMesh";
+import type { IAnimatable } from "../Animations/animatable.interface";
+import type { UniformBuffer } from "./uniformBuffer";
+import type { EffectFallbacks } from "./effectFallbacks";
+import type { MaterialDefines } from "./materialDefines";
+import type { Material } from "./material";
+import type { BaseTexture } from "./Textures/baseTexture";
+import type { RenderTargetTexture } from "./Textures/renderTargetTexture";
 
 /**
  * Base class for material plugins.
@@ -32,6 +32,12 @@ export class MaterialPluginBase {
      */
     @serialize()
     public priority: number = 500;
+
+    /**
+     * Indicates that any #include directive in the plugin code must be replaced by the corresponding code.
+     */
+    @serialize()
+    public resolveIncludes: boolean = false;
 
     /**
      * Indicates that this plugin should be notified for the extra events (HasRenderTargetTextures / FillRenderTargetTextures / HardBindForSubMesh)
@@ -62,11 +68,13 @@ export class MaterialPluginBase {
      * @param defines list of defines used by the plugin. The value of the property is the default value for this property
      * @param addToPluginList true to add the plugin to the list of plugins managed by the material plugin manager of the material (default: true)
      * @param enable true to enable the plugin (it is handy if the plugin does not handle properties to switch its current activation)
+     * @param resolveIncludes Indicates that any #include directive in the plugin code must be replaced by the corresponding code (default: false)
      */
-    constructor(material: Material, name: string, priority: number, defines?: { [key: string]: any }, addToPluginList = true, enable = false) {
+    constructor(material: Material, name: string, priority: number, defines?: { [key: string]: any }, addToPluginList = true, enable = false, resolveIncludes = false) {
         this._material = material;
         this.name = name;
         this.priority = priority;
+        this.resolveIncludes = resolveIncludes;
 
         if (!material.pluginManager) {
             material.pluginManager = new MaterialPluginManager(material);
@@ -140,7 +148,7 @@ export class MaterialPluginBase {
     /**
      * Returns a list of custom shader code fragments to customize the shader.
      * @param shaderType "vertex" or "fragment"
-     * @returns null if no code to be added, or a list of pointName => code.
+     * @returns null if no code to be added, or a list of pointName =\> code.
      * Note that `pointName` can also be a regular expression if it starts with a `!`.
      * In that case, the string found by the regular expression (if any) will be
      * replaced by the code provided.
@@ -279,7 +287,7 @@ export class MaterialPluginBase {
     }
 
     /**
-     * Serializes this clear coat configuration.
+     * Serializes this plugin configuration.
      * @returns - An object with the serialized config.
      */
     public serialize(): any {
@@ -287,7 +295,7 @@ export class MaterialPluginBase {
     }
 
     /**
-     * Parses a anisotropy Configuration from a serialized object.
+     * Parses a plugin configuration from a serialized object.
      * @param source - Serialized object.
      * @param scene Defines the scene we are parsing for
      * @param rootUrl Defines the rootUrl to load from

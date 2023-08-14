@@ -21,6 +21,9 @@ export class AddBlock extends NodeMaterialBlock {
 
         this._outputs[0]._typeConnectionSource = this._inputs[0];
         this._linkConnectionTypes(0, 1);
+
+        this._inputs[0].acceptedConnectionPointTypes.push(NodeMaterialBlockConnectionPointTypes.Float);
+        this._inputs[1].acceptedConnectionPointTypes.push(NodeMaterialBlockConnectionPointTypes.Float);
     }
 
     /**
@@ -57,7 +60,7 @@ export class AddBlock extends NodeMaterialBlock {
 
         const output = this._outputs[0];
 
-        state.compilationString += this._declareOutput(output, state) + ` = ${this.left.associatedVariableName} + ${this.right.associatedVariableName};\r\n`;
+        state.compilationString += this._declareOutput(output, state) + ` = ${this.left.associatedVariableName} + ${this.right.associatedVariableName};\n`;
 
         return this;
     }

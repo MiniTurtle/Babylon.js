@@ -2,6 +2,16 @@
     "root": "https://cdn.babylonjs.com",
     "tests": [
         {
+            "title": "GreasedLine - basic",
+            "playgroundId": "#H1LRZ3#103",
+            "referenceImage": "greased-line-basic.png"
+        },
+        {
+            "title": "MeshBuilder.CreateText",
+            "playgroundId": "#6I2RMN#2",
+            "referenceImage": "createText.png"
+        },
+        {
             "title": "Negative scaling with instances",
             "playgroundId": "#Z3YS9T#0",
             "referenceImage": "negative scaling with instances.png"
@@ -688,15 +698,30 @@
             "renderCount": 1
         },
         {
-            "title": "GLTF Serializer with Negative World Matrix",
-            "playgroundId": "#KX53VK#35",
+            "title": "GLTF Serializer with Negative World Matrix (left handed, once)",
+            "playgroundId": "#KX53VK#48",
             "referenceImage": "glTFSerializerNegativeWorldMatrix.png",
             "errorRatio": 1.1
         },
         {
-            "title": "GLTF Serializer with Negative World Matrix (Right Handed)",
-            "playgroundId": "#KX53VK#36",
-            "referenceImage": "glTFSerializerNegativeWorldMatrix_Right.png",
+            "title": "GLTF Serializer with Negative World Matrix (left handed, twice)",
+            "playgroundId": "#KX53VK#48",
+            "referenceImage": "glTFSerializerNegativeWorldMatrix.png",
+            "replace": "iterations = 1, iterations = 2",
+            "errorRatio": 1.1
+        },
+        {
+            "title": "GLTF Serializer with Negative World Matrix (right handed, once)",
+            "playgroundId": "#KX53VK#48",
+            "referenceImage": "glTFSerializerNegativeWorldMatrix.png",
+            "replace": "useRightHandedSystem = false, useRightHandedSystem = true",
+            "errorRatio": 1.1
+        },
+        {
+            "title": "GLTF Serializer with Negative World Matrix (left handed, twice)",
+            "playgroundId": "#KX53VK#48",
+            "referenceImage": "glTFSerializerNegativeWorldMatrix.png",
+            "replace": "useRightHandedSystem = false, useRightHandedSystem = true, iterations = 1, iterations = 2",
             "errorRatio": 1.1
         },
         {
@@ -712,7 +737,7 @@
         {
             "title": "GLTF Serializer Morph Target Animation",
             "renderCount": 2,
-            "playgroundId": "#84M2SR#23",
+            "playgroundId": "#84M2SR#107",
             "referenceImage": "gltfSerializerMorphTargetAnimation.png"
         },
         {
@@ -1038,6 +1063,11 @@
             "renderCount": 10
         },
         {
+            "title": "GLB load from ArrayBuffer",
+            "playgroundId": "#31UBR0#4",
+            "referenceImage": "glbArrayBufferViewLoad.png"
+        },
+        {
             "title": "KTX2 decoder test",
             "playgroundId": "#EIJH8L#27",
             "renderCount": 5,
@@ -1077,7 +1107,7 @@
             "title": "Shadows CSM and LODs",
             "playgroundId": "#24HWT9#0",
             "referenceImage": "shadowscsmandlod.png",
-            "excludedEngines": ["webgl1","webgpu"]
+            "excludedEngines": ["webgl1"]
         },
         {
             "title": "Glow layer and LODs",
@@ -1270,11 +1300,40 @@
             "referenceImage": "prepass-ssao-msaa.png"
         },
         {
+            "title": "Multi camera rendering with scissors",
+            "playgroundId": "#1LK70I#35",
+            "referenceImage": "multiCameraRenderingWithScissors.png"
+        },
+        {
             "title": "Scissor test",
             "renderCount": 10,
             "playgroundId": "#W7E7CF#12",
             "excludedEngines": ["webgl1"],
             "referenceImage": "scissor-test.png"
+        },
+        {
+            "title": "Scissor test with 0.9 hardware scaling",
+            "renderCount": 10,
+            "playgroundId": "#W7E7CF#27",
+            "excludedEngines": ["webgl1"],
+            "referenceImage": "scissor-test.png"
+        },
+        {
+            "title": "Scissor test with 1.5 hardware scaling",
+            "renderCount": 10,
+            "playgroundId": "#W7E7CF#28",
+            "excludedEngines": ["webgl1"],
+            "referenceImage": "scissor-test.png"
+        },
+        {
+            "title": "Scissor test with negative x and y",
+            "playgroundId": "#3L5BCD#2",
+            "referenceImage": "scissorTestNegativeXandY.png"
+        },
+        {
+            "title": "Scissor test with out of bounds width and height",
+            "playgroundId": "#3L5BCD#3",
+            "referenceImage": "scissorTestOobWidthAndHeight.png"
         },
         {
             "title": "Refraction local cube map STD",
@@ -1460,7 +1519,7 @@
         {
             "title": "GUI Input Test",
             "renderCount": 2,
-            "playgroundId": "#UB4F3B#7",
+            "playgroundId": "#UB4F3B#8",
             "referenceImage": "guiInputTest.png"
         },
         {
@@ -1501,7 +1560,7 @@
             "referenceImage": "multiSGPerLight.png",
             "errorRatio": 2,
             "renderCount": 5,
-            "excludedEngines": ["webgl1","webgpu"]
+            "excludedEngines": ["webgl1"]
         },
         {
             "title": "Fluid rendering particle system",
@@ -1564,7 +1623,7 @@
             "excludeFromAutomaticTesting": true
         },
         {
-            "title": "Instantiate Hierarchy", 
+            "title": "Instantiate Hierarchy",
             "playgroundId": "#BET11L"
         },
         {
@@ -1579,7 +1638,7 @@
             "excludedEngines": ["webgl1"]
         },
         {
-            "title": "Decal Map", 
+            "title": "Decal Map",
             "playgroundId": "#9BVW2S#43"
         },
         {
@@ -1606,6 +1665,35 @@
         {
             "title": "Rounding cell widths on Grid",
             "playgroundId": "#PQ4G5G#2"
+        },
+        {
+            "title": "GUI for Mesh cloning",
+            "playgroundId": "#ZUAPLL#2"
+        },
+        {
+            "title": "PBR Debug Modes",
+            "playgroundId": "#2FDQT5#2300"
+        },
+        {
+            "title": "convertToFlatShadedMesh",
+            "playgroundId": "#UFDL9T#4"
+        },
+        {
+            "title": "SerializeMesh with hierarchy",
+            "playgroundId": "#TX92RN#5"
+        },
+        {
+            "title": "MeshDebugPluginMaterial",
+            "playgroundId": "#TFDNZI#2",
+            "excludedEngines": ["webgl1"]
+        },
+        {
+            "title": "SerializeScene and ImportMesh with string skeletonIds",
+            "playgroundId": "#D4ZZ8#430"
+        },
+        {
+            "title": "SerializeScene and ImportMesh with MorphTargetManager",
+            "playgroundId": "#HPV2TZ#378"
         }
     ]
 }

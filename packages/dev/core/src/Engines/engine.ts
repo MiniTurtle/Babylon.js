@@ -28,8 +28,8 @@ import "./Extensions/engine.readTexture";
 import "./Extensions/engine.dynamicBuffer";
 import type { IAudioEngine } from "../Audio/Interfaces/IAudioEngine";
 
-declare type Material = import("../Materials/material").Material;
-declare type PostProcess = import("../PostProcesses/postProcess").PostProcess;
+import type { Material } from "../Materials/material";
+import type { PostProcess } from "../PostProcesses/postProcess";
 
 /**
  * Defines the interface used by display changed events
@@ -1235,10 +1235,10 @@ export class Engine extends ThinEngine {
     public setTextureFromPostProcess(channel: number, postProcess: Nullable<PostProcess>, name: string): void {
         let postProcessInput = null;
         if (postProcess) {
-            if (postProcess._textures.data[postProcess._currentRenderTextureInd]) {
-                postProcessInput = postProcess._textures.data[postProcess._currentRenderTextureInd];
-            } else if (postProcess._forcedOutputTexture) {
+            if (postProcess._forcedOutputTexture) {
                 postProcessInput = postProcess._forcedOutputTexture;
+            } else if (postProcess._textures.data[postProcess._currentRenderTextureInd]) {
+                postProcessInput = postProcess._textures.data[postProcess._currentRenderTextureInd];
             }
         }
 
@@ -1278,6 +1278,18 @@ export class Engine extends ThinEngine {
             const renderFunction = this._activeRenderLoops[index];
 
             renderFunction();
+        }
+    }
+
+    protected _cancelFrame() {
+        if (this._renderingQueueLaunched && this.customAnimationFrameRequester) {
+            this._renderingQueueLaunched = false;
+            const { cancelAnimationFrame } = this.customAnimationFrameRequester;
+            if (cancelAnimationFrame) {
+                cancelAnimationFrame(this.customAnimationFrameRequester.requestID);
+            }
+        } else {
+            super._cancelFrame();
         }
     }
 
@@ -1720,7 +1732,7 @@ export class Engine extends ThinEngine {
         this._bindTextureDirectly(bindTarget, texture, true);
         this._unpackFlipY(texture.invertY);
 
-        let target = gl.TEXTURE_2D;
+        let target: GLenum = gl.TEXTURE_2D;
         if (texture.isCube) {
             target = gl.TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex;
         }
@@ -1928,7 +1940,6 @@ export class Engine extends ThinEngine {
         // no more engines left in the engine store? Notify!
         if (!Engine.Instances.length) {
             EngineStore.OnEnginesDisposedObservable.notifyObservers(this);
-            EngineStore.OnEnginesDisposedObservable.clear();
         }
 
         // Observables

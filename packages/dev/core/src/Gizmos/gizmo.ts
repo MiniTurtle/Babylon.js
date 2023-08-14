@@ -40,6 +40,24 @@ export interface GizmoAxisCache {
 }
 
 /**
+ * Anchor options where the Gizmo can be positioned in relation to its anchored node
+ */
+export enum GizmoAnchorPoint {
+    /** The origin of the attached node */
+    Origin,
+    /** The pivot point of the attached node*/
+    Pivot,
+}
+
+/**
+ * Coordinates mode: Local or World. Defines how axis is aligned: either on world axis or transform local axis
+ */
+export enum GizmoCoordinatesMode {
+    World,
+    Local,
+}
+
+/**
  * Interface for basic gizmo
  */
 export interface IGizmo extends IDisposable {
@@ -69,6 +87,17 @@ export interface IGizmo extends IDisposable {
      * If set the gizmo's position will be updated to match the attached mesh each frame (Default: true)
      */
     updateGizmoPositionToMatchAttachedMesh: boolean;
+    /**
+     * Defines where the gizmo will be positioned if `updateGizmoPositionToMatchAttachedMesh` is enabled.
+     * (Default: GizmoAnchorPoint.Origin)
+     */
+    anchorPoint: GizmoAnchorPoint;
+
+    /**
+     * Set the coordinate mode to use. By default it's local.
+     */
+    coordinatesMode: GizmoCoordinatesMode;
+
     /**
      * When set, the gizmo will always appear the same size no matter where the camera is (default: true)
      */
@@ -176,7 +205,9 @@ export class Gizmo implements IGizmo {
 
     protected _updateGizmoRotationToMatchAttachedMesh = true;
     protected _updateGizmoPositionToMatchAttachedMesh = true;
+    protected _anchorPoint = GizmoAnchorPoint.Origin;
     protected _updateScale = true;
+    protected _coordinatesMode = GizmoCoordinatesMode.Local;
 
     /**
      * If set the gizmo's rotation will be updated to match the attached mesh each frame (Default: true)
@@ -197,6 +228,34 @@ export class Gizmo implements IGizmo {
     public get updateGizmoPositionToMatchAttachedMesh() {
         return this._updateGizmoPositionToMatchAttachedMesh;
     }
+
+    /**
+     * Defines where the gizmo will be positioned if `updateGizmoPositionToMatchAttachedMesh` is enabled.
+     * (Default: GizmoAnchorPoint.Origin)
+     */
+    public set anchorPoint(value: GizmoAnchorPoint) {
+        this._anchorPoint = value;
+    }
+    public get anchorPoint() {
+        return this._anchorPoint;
+    }
+
+    /**
+     * Set the coordinate system to use. By default it's local.
+     * But it's possible for a user to tweak so its local for translation and world for rotation.
+     * In that case, setting the coordinate system will change `updateGizmoRotationToMatchAttachedMesh` and `updateGizmoPositionToMatchAttachedMesh`
+     */
+    public set coordinatesMode(coordinatesMode: GizmoCoordinatesMode) {
+        this._coordinatesMode = coordinatesMode;
+        const local = coordinatesMode == GizmoCoordinatesMode.Local;
+        this.updateGizmoRotationToMatchAttachedMesh = local;
+        this.updateGizmoPositionToMatchAttachedMesh = local;
+    }
+
+    public get coordinatesMode() {
+        return this._coordinatesMode;
+    }
+
     /**
      * When set, the gizmo will always appear the same size no matter where the camera is (default: true)
      */
@@ -254,9 +313,14 @@ export class Gizmo implements IGizmo {
 
             // Position
             if (this.updateGizmoPositionToMatchAttachedMesh) {
-                const row = effectiveNode.getWorldMatrix().getRow(3);
-                const position = row ? row.toVector3() : new Vector3(0, 0, 0);
-                this._rootMesh.position.copyFrom(position);
+                if (this.anchorPoint == GizmoAnchorPoint.Pivot && (<TransformNode>effectiveNode).getAbsolutePivotPoint) {
+                    const position = (<TransformNode>effectiveNode).getAbsolutePivotPoint();
+                    this._rootMesh.position.copyFrom(position);
+                } else {
+                    const row = effectiveNode.getWorldMatrix().getRow(3);
+                    const position = row ? row.toVector3() : new Vector3(0, 0, 0);
+                    this._rootMesh.position.copyFrom(position);
+                }
             }
 
             // Rotation
@@ -388,6 +452,7 @@ export class Gizmo implements IGizmo {
             } else {
                 this._attachedNode._worldMatrix.decompose(TmpVectors.Vector3[0], TmpVectors.Quaternion[0], transform.position, Gizmo.PreserveScaling ? transform : undefined);
             }
+            TmpVectors.Vector3[0].scaleInPlace(1.0 / transform.scalingDeterminant);
             transform.scaling.copyFrom(TmpVectors.Vector3[0]);
             if (!transform.billboardMode) {
                 if (transform.rotationQuaternion) {
@@ -404,13 +469,13 @@ export class Gizmo implements IGizmo {
             if (parent) {
                 const invParent = TmpVectors.Matrix[0];
                 const boneLocalMatrix = TmpVectors.Matrix[1];
-                parent.getWorldMatrix().invertToRef(invParent);
-                bone.getWorldMatrix().multiplyToRef(invParent, boneLocalMatrix);
+                parent.getFinalMatrix().invertToRef(invParent);
+                bone.getFinalMatrix().multiplyToRef(invParent, boneLocalMatrix);
                 const lmat = bone.getLocalMatrix();
                 lmat.copyFrom(boneLocalMatrix);
             } else {
                 const lmat = bone.getLocalMatrix();
-                lmat.copyFrom(bone.getWorldMatrix());
+                lmat.copyFrom(bone.getFinalMatrix());
             }
             bone.markAsDirty();
         } else {

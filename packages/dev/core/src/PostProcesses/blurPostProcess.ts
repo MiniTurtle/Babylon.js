@@ -14,7 +14,7 @@ import "../Shaders/kernelBlur.vertex";
 import { RegisterClass } from "../Misc/typeStore";
 import { serialize, serializeAsVector2, SerializationHelper } from "../Misc/decorators";
 
-declare type Scene = import("../scene").Scene;
+import type { Scene } from "../scene";
 
 /**
  * The Blur Post Process which blurs an image based on a kernel and direction.
@@ -234,19 +234,19 @@ export class BlurPostProcess extends PostProcess {
 
         // The DOF fragment should ignore the center pixel when looping as it is handled manually in the fragment shader.
         if (this._staticDefines.indexOf("DOF") != -1) {
-            defines += `#define CENTER_WEIGHT ${this._glslFloat(weights[varyingCount - 1])}\r\n`;
+            defines += `#define CENTER_WEIGHT ${this._glslFloat(weights[varyingCount - 1])}\n`;
             varyingCount--;
         }
 
         for (let i = 0; i < varyingCount; i++) {
-            defines += `#define KERNEL_OFFSET${i} ${this._glslFloat(offsets[i])}\r\n`;
-            defines += `#define KERNEL_WEIGHT${i} ${this._glslFloat(weights[i])}\r\n`;
+            defines += `#define KERNEL_OFFSET${i} ${this._glslFloat(offsets[i])}\n`;
+            defines += `#define KERNEL_WEIGHT${i} ${this._glslFloat(weights[i])}\n`;
         }
 
         let depCount = 0;
         for (let i = freeVaryingVec2; i < offsets.length; i++) {
-            defines += `#define KERNEL_DEP_OFFSET${depCount} ${this._glslFloat(offsets[i])}\r\n`;
-            defines += `#define KERNEL_DEP_WEIGHT${depCount} ${this._glslFloat(weights[i])}\r\n`;
+            defines += `#define KERNEL_DEP_OFFSET${depCount} ${this._glslFloat(offsets[i])}\n`;
+            defines += `#define KERNEL_DEP_WEIGHT${depCount} ${this._glslFloat(weights[i])}\n`;
             depCount++;
         }
 

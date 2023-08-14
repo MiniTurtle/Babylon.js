@@ -16,10 +16,10 @@ import { GenerateBase64StringFromTexture, GenerateBase64StringFromTextureAsync }
 import { CompatibilityOptions } from "../../Compat/compatibilityOptions";
 import type { InternalTexture } from "./internalTexture";
 
-declare type CubeTexture = import("../../Materials/Textures/cubeTexture").CubeTexture;
-declare type MirrorTexture = import("../../Materials/Textures/mirrorTexture").MirrorTexture;
-declare type RenderTargetTexture = import("../../Materials/Textures/renderTargetTexture").RenderTargetTexture;
-declare type Scene = import("../../scene").Scene;
+import type { CubeTexture } from "../../Materials/Textures/cubeTexture";
+import type { MirrorTexture } from "../../Materials/Textures/mirrorTexture";
+import type { RenderTargetTexture } from "../../Materials/Textures/renderTargetTexture";
+import type { Scene } from "../../scene";
 
 /**
  * Defines the available options when creating a texture
@@ -1052,7 +1052,7 @@ export class Texture extends BaseTexture {
                         texture.name = parsedTexture.name;
                     } else {
                         let url: string;
-                        if (parsedTexture.name && parsedTexture.name.indexOf("://") > 0) {
+                        if (parsedTexture.name && (parsedTexture.name.indexOf("://") > 0 || parsedTexture.name.startsWith("data:"))) {
                             url = parsedTexture.name;
                         } else {
                             url = rootUrl + parsedTexture.name;

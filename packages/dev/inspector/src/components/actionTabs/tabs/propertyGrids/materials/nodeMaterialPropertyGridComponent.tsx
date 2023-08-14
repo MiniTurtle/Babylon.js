@@ -37,7 +37,7 @@ export class NodeMaterialPropertyGridComponent extends React.Component<INodeMate
     }
 
     edit() {
-        this.props.material.edit();
+        this.props.material.edit({ nodeEditorConfig: { backgroundColor: this.props.material.getScene().clearColor } });
     }
 
     renderTextures() {
@@ -242,7 +242,7 @@ export class NodeMaterialPropertyGridComponent extends React.Component<INodeMate
         const material = this.props.material;
 
         return (
-            <div className="pane">
+            <>
                 <CommonMaterialPropertyGridComponent
                     globalState={this.props.globalState}
                     lockObject={this.props.lockObject}
@@ -255,7 +255,7 @@ export class NodeMaterialPropertyGridComponent extends React.Component<INodeMate
                 </LineContainerComponent>
                 {this.renderInputValues()}
                 {this.renderTextures()}
-            </div>
+            </>
         );
     }
 }

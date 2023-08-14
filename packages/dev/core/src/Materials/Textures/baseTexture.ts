@@ -15,7 +15,7 @@ import type { ThinEngine } from "../../Engines/thinEngine";
 import { ThinTexture } from "./thinTexture";
 import type { AbstractScene } from "../../abstractScene";
 
-declare type Animation = import("../../Animations/animation").Animation;
+import type { Animation } from "../../Animations/animation";
 
 /**
  * Base class of all the textures in babylon.
@@ -583,6 +583,15 @@ export class BaseTexture extends ThinTexture implements IAnimatable {
      */
     public getReflectionTextureMatrix(): Matrix {
         return <Matrix>Matrix.IdentityReadOnly;
+    }
+
+    /**
+     * Gets a suitable rotate/transform matrix when the texture is used for refraction.
+     * There's a separate function from getReflectionTextureMatrix because refraction requires a special configuration of the matrix in right-handed mode.
+     * @returns The refraction matrix
+     */
+    public getRefractionTextureMatrix(): Matrix {
+        return this.getReflectionTextureMatrix();
     }
 
     /**

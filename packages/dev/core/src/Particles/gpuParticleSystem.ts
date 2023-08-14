@@ -28,15 +28,17 @@ import type { DataBuffer } from "../Buffers/dataBuffer";
 import { DrawWrapper } from "../Materials/drawWrapper";
 import type { UniformBufferEffectCommonAccessor } from "../Materials/uniformBufferEffectCommonAccessor";
 import type { IGPUParticleSystemPlatform } from "./IGPUParticleSystemPlatform";
+import { GetClass } from "../Misc/typeStore";
+import { addClipPlaneUniforms, bindClipPlane, prepareStringDefinesForClipPlanes } from "../Materials/clipPlaneMaterialHelper";
 
-declare type Scene = import("../scene").Scene;
-declare type Engine = import("../Engines/engine").Engine;
-declare type AbstractMesh = import("../Meshes/abstractMesh").AbstractMesh;
+import type { Scene } from "../scene";
+import type { Engine } from "../Engines/engine";
+import type { AbstractMesh } from "../Meshes/abstractMesh";
+
+import "../Engines/Extensions/engine.transformFeedback";
 
 import "../Shaders/gpuRenderParticles.fragment";
 import "../Shaders/gpuRenderParticles.vertex";
-import { GetClass } from "../Misc/typeStore";
-import { addClipPlaneUniforms, bindClipPlane, prepareStringDefinesForClipPlanes } from "../Materials/clipPlaneMaterialHelper";
 
 /**
  * This represents a GPU particle system in Babylon
@@ -50,7 +52,7 @@ export class GPUParticleSystem extends BaseParticleSystem implements IDisposable
     public layerMask: number = 0x0fffffff;
 
     private _capacity: number;
-    private _activeCount: number;
+    private _maxActiveParticleCount: number;
     private _currentActiveCount: number;
     private _accumulatedCount = 0;
     private _updateBuffer: UniformBufferEffectCommonAccessor;
@@ -131,13 +133,26 @@ export class GPUParticleSystem extends BaseParticleSystem implements IDisposable
 
     /**
      * Gets or set the number of active particles
+     * The value cannot be greater than "capacity" (if it is, it will be limited to "capacity").
+     */
+    public get maxActiveParticleCount(): number {
+        return this._maxActiveParticleCount;
+    }
+
+    public set maxActiveParticleCount(value: number) {
+        this._maxActiveParticleCount = Math.min(value, this._capacity);
+    }
+
+    /**
+     * Gets or set the number of active particles
+     * @deprecated Please use maxActiveParticleCount instead.
      */
     public get activeParticleCount(): number {
-        return this._activeCount;
+        return this.maxActiveParticleCount;
     }
 
     public set activeParticleCount(value: number) {
-        this._activeCount = Math.min(value, this._capacity);
+        this.maxActiveParticleCount = value;
     }
 
     private _preWarmDone = false;
@@ -833,7 +848,7 @@ export class GPUParticleSystem extends BaseParticleSystem implements IDisposable
         }
 
         this._capacity = fullOptions.capacity;
-        this._activeCount = fullOptions.capacity;
+        this._maxActiveParticleCount = fullOptions.capacity;
         this._currentActiveCount = 0;
         this._isAnimationSheetEnabled = isAnimationSheetEnabled;
 
@@ -1706,10 +1721,12 @@ export class GPUParticleSystem extends BaseParticleSystem implements IDisposable
                 if (this._accumulatedCount > 1) {
                     const intPart = this._accumulatedCount | 0;
                     this._accumulatedCount -= intPart;
-                    this._currentActiveCount = Math.min(this._activeCount, this._currentActiveCount + intPart);
+                    this._currentActiveCount = Math.min(this._maxActiveParticleCount, this._currentActiveCount + intPart);
                 }
             }
         }
+
+        this._currentActiveCount = Math.min(this._maxActiveParticleCount, this._currentActiveCount);
 
         if (!this._currentActiveCount) {
             return 0;
@@ -1756,7 +1773,18 @@ export class GPUParticleSystem extends BaseParticleSystem implements IDisposable
      * Rebuilds the particle system
      */
     public rebuild(): void {
-        this._initialize(true);
+        const checkUpdateEffect = () => {
+            if (!this._recreateUpdateEffect() || !this._platform.isUpdateBufferReady()) {
+                setTimeout(checkUpdateEffect, 10);
+            } else {
+                this._initialize(true);
+            }
+        };
+
+        this._cachedUpdateDefines = "";
+        this._platform.contextLost();
+
+        checkUpdateEffect();
     }
 
     private _releaseBuffers() {

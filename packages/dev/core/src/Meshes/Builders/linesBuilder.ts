@@ -9,7 +9,7 @@ import type { Scene } from "../../scene";
 import { VertexBuffer } from "../../Buffers/buffer";
 import { Logger } from "../../Misc/logger";
 
-declare type Material = import("../../Materials/material").Material;
+import type { Material } from "../../Materials/material";
 
 /**
  * Creates the VertexData of the LineSystem
@@ -136,7 +136,7 @@ export function CreateDashedLinesVertexData(options: { points: Vector3[]; dashSi
 export function CreateLineSystem(
     name: string,
     options: { lines: Vector3[][]; updatable?: boolean; instance?: Nullable<LinesMesh>; colors?: Nullable<Color4[][]>; useVertexAlpha?: boolean; material?: Material },
-    scene: Nullable<Scene>
+    scene: Nullable<Scene> = null
 ): LinesMesh {
     const instance = options.instance;
     const lines = options.lines;
@@ -332,7 +332,7 @@ export const LinesBuilder = {
 VertexData.CreateLineSystem = CreateLineSystemVertexData;
 VertexData.CreateDashedLines = CreateDashedLinesVertexData;
 
-(Mesh as any).CreateLines = (name: string, points: Vector3[], scene: Nullable<Scene> = null, updatable: boolean = false, instance: Nullable<LinesMesh> = null): LinesMesh => {
+Mesh.CreateLines = (name: string, points: Vector3[], scene: Nullable<Scene> = null, updatable: boolean = false, instance: Nullable<LinesMesh> = null): LinesMesh => {
     const options = {
         points,
         updatable,
@@ -341,7 +341,7 @@ VertexData.CreateDashedLines = CreateDashedLinesVertexData;
     return CreateLines(name, options, scene);
 };
 
-(Mesh as any).CreateDashedLines = (
+Mesh.CreateDashedLines = (
     name: string,
     points: Vector3[],
     dashSize: number,

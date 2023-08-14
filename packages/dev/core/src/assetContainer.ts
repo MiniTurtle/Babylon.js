@@ -31,7 +31,7 @@ export class InstantiatedEntries {
     /**
      * List of new root nodes (eg. nodes with no parent)
      */
-    public rootNodes: TransformNode[] = [];
+    public rootNodes: Node[] = [];
 
     /**
      * List of new skeletons
@@ -123,8 +123,8 @@ export class AssetContainer extends AbstractScene {
      * Given a list of nodes, return a topological sorting of them.
      * @param nodes
      */
-    private _topologicalSort(nodes: TransformNode[]): TransformNode[] {
-        const nodesUidMap = new Map<number, TransformNode>();
+    private _topologicalSort(nodes: Node[]): Node[] {
+        const nodesUidMap = new Map<number, Node>();
 
         for (const node of nodes) {
             nodesUidMap.set(node.uniqueId, node);
@@ -173,10 +173,10 @@ export class AssetContainer extends AbstractScene {
         }
 
         // Third pass: Topological sort
-        const sortedNodes: TransformNode[] = [];
+        const sortedNodes: Node[] = [];
 
         // First: Find all nodes that have no dependencies
-        const leaves: TransformNode[] = [];
+        const leaves: Node[] = [];
         for (const node of nodes) {
             const nodeId = node.uniqueId;
             if (dependencyGraph.dependsOn.get(nodeId)!.size === 0) {
@@ -292,7 +292,7 @@ export class AssetContainer extends AbstractScene {
     public instantiateModelsToScene(
         nameFunction?: (sourceName: string) => string,
         cloneMaterials = false,
-        options?: { doNotInstantiate?: boolean | ((node: TransformNode) => boolean); predicate?: (entity: any) => boolean }
+        options?: { doNotInstantiate?: boolean | ((node: Node) => boolean); predicate?: (entity: any) => boolean }
     ): InstantiatedEntries {
         if (!this._isValidHierarchy()) {
             Tools.Warn("SceneSerializer.InstantiateModelsToScene: The Asset Container hierarchy is not valid.");
@@ -308,7 +308,7 @@ export class AssetContainer extends AbstractScene {
             ...options,
         };
 
-        const onClone = (source: TransformNode, clone: TransformNode) => {
+        const onClone = (source: Node, clone: Node) => {
             conversionMap[source.uniqueId] = clone.uniqueId;
             storeMap[clone.uniqueId] = clone;
 
@@ -334,7 +334,7 @@ export class AssetContainer extends AbstractScene {
             }
         };
 
-        const nodesToSort: TransformNode[] = [];
+        const nodesToSort: Node[] = [];
         const idsOnSortList = new Set<number>();
 
         for (const transformNode of this.transformNodes) {
@@ -353,7 +353,7 @@ export class AssetContainer extends AbstractScene {
         // when a given node is instantiated.
         const sortedNodes = this._topologicalSort(nodesToSort);
 
-        const onNewCreated = (source: TransformNode, clone: TransformNode) => {
+        const onNewCreated = (source: Node, clone: Node) => {
             onClone(source, clone);
 
             if (source.parent) {
@@ -367,9 +367,18 @@ export class AssetContainer extends AbstractScene {
                 }
             }
 
-            clone.position.copyFrom(source.position);
-            clone.rotation.copyFrom(source.rotation);
-            clone.scaling.copyFrom(source.scaling);
+            if ((clone as any).position && (source as any).position) {
+                (clone as any).position.copyFrom((source as any).position);
+            }
+            if ((clone as any).rotationQuaternion && (source as any).rotationQuaternion) {
+                (clone as any).rotationQuaternion.copyFrom((source as any).rotationQuaternion);
+            }
+            if ((clone as any).rotation && (source as any).rotation) {
+                (clone as any).rotation.copyFrom((source as any).rotation);
+            }
+            if ((clone as any).scaling && (source as any).scaling) {
+                (clone as any).scaling.copyFrom((source as any).scaling);
+            }
 
             if ((clone as any).material) {
                 const mesh = clone as AbstractMesh;
@@ -434,7 +443,13 @@ export class AssetContainer extends AbstractScene {
             } else {
                 // Mesh or TransformNode
                 let canInstance = true;
-                if (node.getClassName() === "TransformNode" || (node as Mesh).skeleton || (node as Mesh).getTotalVertices() === 0) {
+                if (
+                    node.getClassName() === "TransformNode" ||
+                    node.getClassName() === "Node" ||
+                    (node as Mesh).skeleton ||
+                    !(node as any).getTotalVertices ||
+                    (node as Mesh).getTotalVertices() === 0
+                ) {
                     // Transform nodes, skinned meshes, and meshes with no vertices can never be instanced!
                     canInstance = false;
                 } else if (localOptions.doNotInstantiate) {
@@ -534,23 +549,27 @@ export class AssetContainer extends AbstractScene {
      * @param predicate defines a predicate used to select which entity will be added (can be null)
      */
     public addToScene(predicate: Nullable<(entity: any) => boolean> = null) {
+        const addedNodes: Node[] = [];
         this.cameras.forEach((o) => {
             if (predicate && !predicate(o)) {
                 return;
             }
             this.scene.addCamera(o);
+            addedNodes.push(o);
         });
         this.lights.forEach((o) => {
             if (predicate && !predicate(o)) {
                 return;
             }
             this.scene.addLight(o);
+            addedNodes.push(o);
         });
         this.meshes.forEach((o) => {
             if (predicate && !predicate(o)) {
                 return;
             }
             this.scene.addMesh(o);
+            addedNodes.push(o);
         });
         this.skeletons.forEach((o) => {
             if (predicate && !predicate(o)) {
@@ -599,6 +618,7 @@ export class AssetContainer extends AbstractScene {
                 return;
             }
             this.scene.addTransformNode(o);
+            addedNodes.push(o);
         });
         this.actionManagers.forEach((o) => {
             if (predicate && !predicate(o)) {
@@ -618,6 +638,18 @@ export class AssetContainer extends AbstractScene {
             }
             this.scene.addReflectionProbe(o);
         });
+
+        for (const addedNode of addedNodes) {
+            // If node was added to the scene, but parent is not in the scene, break the relationship
+            if (addedNode.parent && this.scene.getNodes().indexOf(addedNode.parent) === -1) {
+                // Use setParent to keep transform if possible
+                if ((addedNode as TransformNode).setParent) {
+                    (addedNode as TransformNode).setParent(null);
+                } else {
+                    addedNode.parent = null;
+                }
+            }
+        }
     }
 
     /**
@@ -987,5 +1019,35 @@ export class AssetContainer extends AbstractScene {
         });
 
         return newAnimationGroups;
+    }
+
+    /**
+     * @since 6.15.0
+     * This method checks for any node that has no parent
+     * and is not in the rootNodes array, and adds the node
+     * there, if so.
+     */
+    public populateRootNodes() {
+        this.rootNodes.length = 0;
+        this.meshes.forEach((m) => {
+            if (!m.parent && this.rootNodes.indexOf(m) === -1) {
+                this.rootNodes.push(m);
+            }
+        });
+        this.transformNodes.forEach((t) => {
+            if (!t.parent && this.rootNodes.indexOf(t) === -1) {
+                this.rootNodes.push(t);
+            }
+        });
+        this.lights.forEach((l) => {
+            if (!l.parent && this.rootNodes.indexOf(l) === -1) {
+                this.rootNodes.push(l);
+            }
+        });
+        this.cameras.forEach((c) => {
+            if (!c.parent && this.rootNodes.indexOf(c) === -1) {
+                this.rootNodes.push(c);
+            }
+        });
     }
 }

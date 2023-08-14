@@ -61,6 +61,8 @@ import type { Material } from "../material";
 import { MaterialHelper } from "../materialHelper";
 import type { TriPlanarBlock } from "./Blocks/triPlanarBlock";
 import type { BiPlanarBlock } from "./Blocks/biPlanarBlock";
+import type { NodeMaterialTeleportOutBlock } from "./Blocks/Teleport/teleportOutBlock";
+import type { NodeMaterialTeleportInBlock } from "./Blocks/Teleport/teleportInBlock";
 
 const onCreatedEffectParameters = { effect: null as unknown as Effect, subMesh: null as unknown as Nullable<SubMesh> };
 
@@ -72,14 +74,19 @@ declare let BABYLON: any;
  * Interface used to configure the node material editor
  */
 export interface INodeMaterialEditorOptions {
-    /** Define the URl to load node editor script */
+    /** Define the URL to load node editor script from */
     editorURL?: string;
+    /** Additional configuration for the NME */
+    nodeEditorConfig?: {
+        backgroundColor?: Color4;
+    };
 }
 
 /** @internal */
 export class NodeMaterialDefines extends MaterialDefines implements IImageProcessingConfigurationDefines {
     public NORMAL = false;
     public TANGENT = false;
+    public VERTEXCOLOR_NME = false;
     public UV1 = false;
     public UV2 = false;
     public UV3 = false;
@@ -604,6 +611,15 @@ export class NodeMaterial extends PushMaterial {
         return this._sharedData && this._sharedData.hints.needAlphaTesting;
     }
 
+    private _processInitializeOnLink(block: NodeMaterialBlock, state: NodeMaterialBuildState, nodesToProcessForOtherBuildState: NodeMaterialBlock[], autoConfigure = true) {
+        if (block.target === NodeMaterialBlockTargets.VertexAndFragment) {
+            nodesToProcessForOtherBuildState.push(block);
+        } else if (state.target === NodeMaterialBlockTargets.Fragment && block.target === NodeMaterialBlockTargets.Vertex && block._preparationId !== this._buildId) {
+            nodesToProcessForOtherBuildState.push(block);
+        }
+        this._initializeBlock(block, state, nodesToProcessForOtherBuildState, autoConfigure);
+    }
+
     private _initializeBlock(node: NodeMaterialBlock, state: NodeMaterialBuildState, nodesToProcessForOtherBuildState: NodeMaterialBlock[], autoConfigure = true) {
         node.initialize(state);
         if (autoConfigure) {
@@ -631,13 +647,16 @@ export class NodeMaterial extends PushMaterial {
             if (connectedPoint) {
                 const block = connectedPoint.ownerBlock;
                 if (block !== node) {
-                    if (block.target === NodeMaterialBlockTargets.VertexAndFragment) {
-                        nodesToProcessForOtherBuildState.push(block);
-                    } else if (state.target === NodeMaterialBlockTargets.Fragment && block.target === NodeMaterialBlockTargets.Vertex && block._preparationId !== this._buildId) {
-                        nodesToProcessForOtherBuildState.push(block);
-                    }
-                    this._initializeBlock(block, state, nodesToProcessForOtherBuildState, autoConfigure);
+                    this._processInitializeOnLink(block, state, nodesToProcessForOtherBuildState, autoConfigure);
                 }
+            }
+        }
+
+        // Teleportation
+        if (node.isTeleportOut) {
+            const teleport = node as NodeMaterialTeleportOutBlock;
+            if (teleport.entryPoint) {
+                this._processInitializeOnLink(teleport.entryPoint, state, nodesToProcessForOtherBuildState, autoConfigure);
             }
         }
 
@@ -658,6 +677,14 @@ export class NodeMaterial extends PushMaterial {
                 if (block !== node) {
                     this._resetDualBlocks(block, id);
                 }
+            }
+        }
+
+        // If this is a teleport out, we need to reset the connected block
+        if (node.isTeleportOut) {
+            const teleportOut = node as NodeMaterialTeleportOutBlock;
+            if (teleportOut.entryPoint) {
+                this._resetDualBlocks(teleportOut.entryPoint, id);
             }
         }
     }
@@ -681,9 +708,14 @@ export class NodeMaterial extends PushMaterial {
      * Build the material and generates the inner effect
      * @param verbose defines if the build should log activity
      * @param updateBuildId defines if the internal build Id should be updated (default is true)
-     * @param autoConfigure defines if the autoConfigure method should be called when initializing blocks (default is true)
+     * @param autoConfigure defines if the autoConfigure method should be called when initializing blocks (default is false)
      */
-    public build(verbose: boolean = false, updateBuildId = true, autoConfigure = true) {
+    public build(verbose: boolean = false, updateBuildId = true, autoConfigure = false) {
+        // First time?
+        if (!this._vertexCompilationState && !autoConfigure) {
+            autoConfigure = true;
+        }
+
         this._buildWasSuccessful = false;
         const engine = this.getScene().getEngine();
 
@@ -807,10 +839,13 @@ export class NodeMaterial extends PushMaterial {
     private _prepareDefinesForAttributes(mesh: AbstractMesh, defines: NodeMaterialDefines) {
         const oldNormal = defines["NORMAL"];
         const oldTangent = defines["TANGENT"];
+        const oldColor = defines["VERTEXCOLOR_NME"];
 
         defines["NORMAL"] = mesh.isVerticesDataPresent(VertexBuffer.NormalKind);
-
         defines["TANGENT"] = mesh.isVerticesDataPresent(VertexBuffer.TangentKind);
+
+        const hasVertexColors = mesh.useVertexColors && mesh.isVerticesDataPresent(VertexBuffer.ColorKind);
+        defines["VERTEXCOLOR_NME"] = hasVertexColors;
 
         let uvChanged = false;
         for (let i = 1; i <= Constants.MAX_SUPPORTED_UV_SETS; ++i) {
@@ -819,7 +854,7 @@ export class NodeMaterial extends PushMaterial {
             uvChanged = uvChanged || defines["UV" + i] !== oldUV;
         }
 
-        if (oldNormal !== defines["NORMAL"] || oldTangent !== defines["TANGENT"] || uvChanged) {
+        if (oldNormal !== defines["NORMAL"] || oldTangent !== defines["TANGENT"] || oldColor !== defines["VERTEXCOLOR_NME"] || uvChanged) {
             defines.markAsAttributesDirty();
         }
     }
@@ -1399,7 +1434,7 @@ export class NodeMaterial extends PushMaterial {
      * Get a string representing the shaders built by the current node graph
      */
     public get compiledShaders() {
-        return `// Vertex shader\r\n${this._vertexCompilationState.compilationString}\r\n\r\n// Fragment shader\r\n${this._fragmentCompilationState.compilationString}`;
+        return `// Vertex shader\n${this._vertexCompilationState.compilationString}\n\n// Fragment shader\n${this._fragmentCompilationState.compilationString}`;
     }
 
     /**
@@ -1574,10 +1609,12 @@ export class NodeMaterial extends PushMaterial {
     }
 
     /** Creates the node editor window. */
-    private _createNodeEditor() {
-        this.BJSNODEMATERIALEDITOR.NodeEditor.Show({
+    private _createNodeEditor(additionalConfig?: any) {
+        const nodeEditorConfig: any = {
             nodeMaterial: this,
-        });
+            ...additionalConfig,
+        };
+        this.BJSNODEMATERIALEDITOR.NodeEditor.Show(nodeEditorConfig);
     }
 
     /**
@@ -1594,12 +1631,12 @@ export class NodeMaterial extends PushMaterial {
                 // Load editor and add it to the DOM
                 Tools.LoadScript(editorUrl, () => {
                     this.BJSNODEMATERIALEDITOR = this.BJSNODEMATERIALEDITOR || this._getGlobalNodeMaterialEditor();
-                    this._createNodeEditor();
+                    this._createNodeEditor(config?.nodeEditorConfig);
                     resolve();
                 });
             } else {
                 // Otherwise creates the editor
-                this._createNodeEditor();
+                this._createNodeEditor(config?.nodeEditorConfig);
                 resolve();
             }
         });
@@ -1830,6 +1867,14 @@ export class NodeMaterial extends PushMaterial {
                 }
             }
         }
+
+        // Teleportation
+        if (rootNode.isTeleportOut) {
+            const block = rootNode as NodeMaterialTeleportOutBlock;
+            if (block.entryPoint) {
+                this._gatherBlocks(block.entryPoint, list);
+            }
+        }
     }
 
     /**
@@ -1851,7 +1896,8 @@ export class NodeMaterial extends PushMaterial {
         }
 
         // Generate vertex shader
-        let codeString = `var nodeMaterial = new BABYLON.NodeMaterial("${this.name || "node material"}");\r\n`;
+        let codeString = `var nodeMaterial = new BABYLON.NodeMaterial("${this.name || "node material"}");\n`;
+        codeString += `nodeMaterial.mode = BABYLON.NodeMaterialModes.${NodeMaterialModes[this.mode]};\n`;
         for (const node of vertexBlocks) {
             if (node.isInput && alreadyDumped.indexOf(node) === -1) {
                 codeString += node._dumpCode(uniqueNames, alreadyDumped);
@@ -1867,7 +1913,7 @@ export class NodeMaterial extends PushMaterial {
 
         // Connections
         alreadyDumped = [];
-        codeString += "\r\n// Connections\r\n";
+        codeString += "\n// Connections\n";
         for (const node of this._vertexOutputNodes) {
             codeString += node._dumpCodeForOutputConnections(alreadyDumped);
         }
@@ -1876,16 +1922,16 @@ export class NodeMaterial extends PushMaterial {
         }
 
         // Output nodes
-        codeString += "\r\n// Output nodes\r\n";
+        codeString += "\n// Output nodes\n";
         for (const node of this._vertexOutputNodes) {
-            codeString += `nodeMaterial.addOutputNode(${node._codeVariableName});\r\n`;
+            codeString += `nodeMaterial.addOutputNode(${node._codeVariableName});\n`;
         }
 
         for (const node of this._fragmentOutputNodes) {
-            codeString += `nodeMaterial.addOutputNode(${node._codeVariableName});\r\n`;
+            codeString += `nodeMaterial.addOutputNode(${node._codeVariableName});\n`;
         }
 
-        codeString += `nodeMaterial.build();\r\n`;
+        codeString += `nodeMaterial.build();\n`;
 
         return codeString;
     }
@@ -1988,6 +2034,18 @@ export class NodeMaterial extends PushMaterial {
                 map[parsedBlock.id] = block;
 
                 this.attachedBlocks.push(block);
+            }
+        }
+
+        // Reconnect teleportation
+        for (const block of this.attachedBlocks) {
+            if (block.isTeleportOut) {
+                const teleportOut = block as NodeMaterialTeleportOutBlock;
+                const id = teleportOut._tempEntryPointUniqueId;
+                if (id) {
+                    const source = map[id] as NodeMaterialTeleportInBlock;
+                    source.attachToEndpoint(teleportOut);
+                }
             }
         }
 

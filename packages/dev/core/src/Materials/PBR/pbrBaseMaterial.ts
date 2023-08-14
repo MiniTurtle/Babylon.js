@@ -247,6 +247,8 @@ export class PBRMaterialDefines extends MaterialDefines implements IImageProcess
 
     public UNLIT = false;
 
+    public DECAL_AFTER_DETAIL = false;
+
     public DEBUGMODE = 0;
 
     /**
@@ -443,13 +445,13 @@ export abstract class PBRBaseMaterial extends PushMaterial {
     public _metallicF0Factor = 1;
 
     /**
-     * In metallic workflow, specifies an F90 color to help configuring the material F90.
+     * In metallic workflow, specifies an F0 color.
      * By default the F90 is always 1;
      *
      * Please note that this factor is also used as a factor against the default reflectance at normal incidence.
      *
-     * F0 = defaultF0 * metallicF0Factor * metallicReflectanceColor
-     * F90 = metallicReflectanceColor;
+     * F0 = defaultF0_from_IOR * metallicF0Factor * metallicReflectanceColor
+     * F90 = metallicF0Factor;
      * @internal
      */
     public _metallicReflectanceColor = Color3.White();
@@ -821,6 +823,11 @@ export abstract class PBRBaseMaterial extends PushMaterial {
      */
     private _unlit = false;
 
+    /**
+     * If sets to true, the decal map will be applied after the detail map. Else, it is applied before (default: false)
+     */
+    private _applyDecalMapAfterDetailMap = false;
+
     private _debugMode = 0;
     /**
      * @internal
@@ -1085,8 +1092,15 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                     if (!reflectionTexture.isReadyOrNotBlocking()) {
                         return false;
                     }
-                    if (reflectionTexture.irradianceTexture && !reflectionTexture.irradianceTexture.isReadyOrNotBlocking()) {
-                        return false;
+                    if (reflectionTexture.irradianceTexture) {
+                        if (!reflectionTexture.irradianceTexture.isReadyOrNotBlocking()) {
+                            return false;
+                        }
+                    } else {
+                        // Not ready until spherical are ready too.
+                        if (!reflectionTexture.sphericalPolynomial && reflectionTexture.getInternalTexture()?._sphericalPolynomialPromise) {
+                            return false;
+                        }
                     }
                 }
 
@@ -1451,6 +1465,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
 
         const uniformBuffers = ["Material", "Scene", "Mesh"];
 
+        const indexParameters = { maxSimultaneousLights: this._maxSimultaneousLights, maxSimultaneousMorphTargets: defines.NUM_MORPH_INFLUENCERS };
+
         this._eventInfo.fallbacks = fallbacks;
         this._eventInfo.fallbackRank = fallbackRank;
         this._eventInfo.defines = defines;
@@ -1460,6 +1476,7 @@ export abstract class PBRBaseMaterial extends PushMaterial {
         this._eventInfo.uniformBuffersNames = uniformBuffers;
         this._eventInfo.customCode = undefined;
         this._eventInfo.mesh = mesh;
+        this._eventInfo.indexParameters = indexParameters;
         this._callbackPluginEventGeneric(MaterialPluginEvent.PrepareEffect, this._eventInfo);
 
         PrePassConfiguration.AddUniforms(uniforms);
@@ -1497,7 +1514,7 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                 fallbacks: fallbacks,
                 onCompiled: onCompiled,
                 onError: onError,
-                indexParameters: { maxSimultaneousLights: this._maxSimultaneousLights, /*maxSimultaneousMorphTargets: defines.NUM_MORPH_INFLUENCERS*/ },
+                indexParameters,
                 processFinalCode: csnrOptions.processFinalCode,
                 processCodeAfterIncludes: this._eventInfo.customCode,
                 multiTarget: defines.PREPASS,
@@ -1839,7 +1856,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                 this.pointsCloud,
                 this.fogEnabled,
                 this._shouldTurnAlphaTestOn(mesh) || this._forceAlphaTest,
-                defines
+                defines,
+                this._applyDecalMapAfterDetailMap
             );
             defines.UNLIT = this._unlit || ((this.pointsCloud || this.wireframe) && !mesh.isVerticesDataPresent(VertexBuffer.NormalKind));
             defines.DEBUGMODE = this._debugMode;

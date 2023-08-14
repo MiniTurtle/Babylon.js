@@ -197,6 +197,9 @@ export interface EngineOptions extends ThinEngineOptions, WebGLContextAttributes
  * The base engine class (root of all engines)
  */
 export class ThinEngine {
+    private static _TempClearColorUint32 = new Uint32Array(4);
+    private static _TempClearColorInt32 = new Int32Array(4);
+
     /** Use this array to turn off some WebGL2 features on known buggy browsers version */
     public static ExceptionList = [
         { key: "Chrome/63.0", capture: "63\\.0\\.3239\\.(\\d+)", captureConstraint: 108, targets: ["uniformBuffer"] },
@@ -222,14 +225,14 @@ export class ThinEngine {
      */
     // Not mixed with Version for tooling purpose.
     public static get NpmPackage(): string {
-        return "babylonjs@6.0.0";
+        return "babylonjs@6.16.0";
     }
 
     /**
      * Returns the current version of the framework
      */
     public static get Version(): string {
-        return "6.0.0";
+        return "6.16.0";
     }
 
     /**
@@ -407,7 +410,12 @@ export class ThinEngine {
     protected _creationOptions: EngineOptions;
     protected _audioContext: Nullable<AudioContext>;
     protected _audioDestination: Nullable<AudioDestinationNode | MediaStreamAudioDestinationNode>;
-
+    /** @internal */
+    public _glSRGBExtensionValues: {
+        SRGB: typeof WebGL2RenderingContext.SRGB;
+        SRGB8: typeof WebGL2RenderingContext.SRGB8 | EXT_sRGB["SRGB_ALPHA_EXT"];
+        SRGB8_ALPHA8: typeof WebGL2RenderingContext.SRGB8_ALPHA8 | EXT_sRGB["SRGB_ALPHA_EXT"];
+    };
     /**
      * Gets the options used for engine creation
      * @returns EngineOptions object
@@ -1185,6 +1193,7 @@ export class ThinEngine {
             drawBuffersExtension: false,
             maxMSAASamples: 1,
             colorBufferFloat: !!(this._webGLVersion > 1 && this._gl.getExtension("EXT_color_buffer_float")),
+            colorBufferHalfFloat: !!(this._webGLVersion > 1 && this._gl.getExtension("EXT_color_buffer_half_float")),
             textureFloat: this._webGLVersion > 1 || this._gl.getExtension("OES_texture_float") ? true : false,
             textureHalfFloat: this._webGLVersion > 1 || this._gl.getExtension("OES_texture_half_float") ? true : false,
             textureHalfFloatRender: false,
@@ -1245,7 +1254,8 @@ export class ThinEngine {
             if (this._webGLVersion === 1) {
                 this._gl.getQuery = (<any>this._caps.timerQuery).getQueryEXT.bind(this._caps.timerQuery);
             }
-            this._caps.canUseTimestampForTimerQuery = (this._gl.getQuery(this._caps.timerQuery.TIMESTAMP_EXT, this._caps.timerQuery.QUERY_COUNTER_BITS_EXT) ?? 0) > 0;
+            // WebGLQuery casted to number to avoid TS error
+            this._caps.canUseTimestampForTimerQuery = ((this._gl.getQuery(this._caps.timerQuery.TIMESTAMP_EXT, this._caps.timerQuery.QUERY_COUNTER_BITS_EXT) as number) ?? 0) > 0;
         }
 
         this._caps.maxAnisotropy = this._caps.textureAnisotropicFilterExtension
@@ -1290,7 +1300,7 @@ export class ThinEngine {
             if (drawBuffersExtension !== null) {
                 this._caps.drawBuffersExtension = true;
                 this._gl.drawBuffers = drawBuffersExtension.drawBuffersWEBGL.bind(drawBuffersExtension);
-                this._gl.DRAW_FRAMEBUFFER = this._gl.FRAMEBUFFER;
+                (this._gl.DRAW_FRAMEBUFFER as any) = this._gl.FRAMEBUFFER;
 
                 for (let i = 0; i < 16; i++) {
                     (<any>this._gl)["COLOR_ATTACHMENT" + i + "_WEBGL"] = (<any>drawBuffersExtension)["COLOR_ATTACHMENT" + i + "_WEBGL"];
@@ -1357,8 +1367,8 @@ export class ThinEngine {
             const blendMinMaxExtension = this._gl.getExtension("EXT_blend_minmax");
             if (blendMinMaxExtension != null) {
                 this._caps.blendMinMax = true;
-                this._gl.MAX = blendMinMaxExtension.MAX_EXT;
-                this._gl.MIN = blendMinMaxExtension.MIN_EXT;
+                this._gl.MAX = blendMinMaxExtension.MAX_EXT as typeof WebGL2RenderingContext.MAX;
+                this._gl.MIN = blendMinMaxExtension.MIN_EXT as typeof WebGL2RenderingContext.MIN;
             }
         }
 
@@ -1367,14 +1377,21 @@ export class ThinEngine {
         if (!this._caps.supportSRGBBuffers) {
             if (this._webGLVersion > 1) {
                 this._caps.supportSRGBBuffers = true;
+                this._glSRGBExtensionValues = {
+                    SRGB: WebGL2RenderingContext.SRGB,
+                    SRGB8: WebGL2RenderingContext.SRGB8,
+                    SRGB8_ALPHA8: WebGL2RenderingContext.SRGB8_ALPHA8,
+                };
             } else {
                 const sRGBExtension = this._gl.getExtension("EXT_sRGB");
 
                 if (sRGBExtension != null) {
                     this._caps.supportSRGBBuffers = true;
-                    this._gl.SRGB = sRGBExtension.SRGB_EXT;
-                    this._gl.SRGB8 = sRGBExtension.SRGB_ALPHA_EXT;
-                    this._gl.SRGB8_ALPHA8 = sRGBExtension.SRGB_ALPHA_EXT;
+                    this._glSRGBExtensionValues = {
+                        SRGB: sRGBExtension.SRGB_EXT as typeof WebGL2RenderingContext.SRGB | EXT_sRGB["SRGB_EXT"],
+                        SRGB8: sRGBExtension.SRGB_ALPHA_EXT as typeof WebGL2RenderingContext.SRGB8 | EXT_sRGB["SRGB_ALPHA_EXT"],
+                        SRGB8_ALPHA8: sRGBExtension.SRGB_ALPHA_EXT as typeof WebGL2RenderingContext.SRGB8_ALPHA8 | EXT_sRGB["SRGB8_ALPHA8_EXT"],
+                    };
                 }
             }
             // take into account the forced state that was provided in options
@@ -1543,6 +1560,7 @@ export class ThinEngine {
     public stopRenderLoop(renderFunction?: () => void): void {
         if (!renderFunction) {
             this._activeRenderLoops.length = 0;
+            this._cancelFrame();
             return;
         }
 
@@ -1550,6 +1568,26 @@ export class ThinEngine {
 
         if (index >= 0) {
             this._activeRenderLoops.splice(index, 1);
+            if (this._activeRenderLoops.length == 0) {
+                this._cancelFrame();
+            }
+        }
+    }
+
+    protected _cancelFrame() {
+        if (this._renderingQueueLaunched && this._frameHandler) {
+            this._renderingQueueLaunched = false;
+            if (!IsWindowObjectExist()) {
+                if (typeof cancelAnimationFrame === "function") {
+                    return cancelAnimationFrame(this._frameHandler);
+                }
+            } else {
+                const { cancelAnimationFrame } = this.getHostWindow() || window;
+                if (typeof cancelAnimationFrame === "function") {
+                    return cancelAnimationFrame(this._frameHandler);
+                }
+            }
+            return clearTimeout(this._frameHandler);
         }
     }
 
@@ -1692,8 +1730,38 @@ export class ThinEngine {
 
         let mode = 0;
         if (backBuffer && color) {
-            this._gl.clearColor(color.r, color.g, color.b, color.a !== undefined ? color.a : 1.0);
-            mode |= this._gl.COLOR_BUFFER_BIT;
+            let setBackBufferColor = true;
+            if (this._currentRenderTarget) {
+                const textureFormat = this._currentRenderTarget.texture?.format;
+                if (
+                    textureFormat === Constants.TEXTUREFORMAT_RED_INTEGER ||
+                    textureFormat === Constants.TEXTUREFORMAT_RG_INTEGER ||
+                    textureFormat === Constants.TEXTUREFORMAT_RGB_INTEGER ||
+                    textureFormat === Constants.TEXTUREFORMAT_RGBA_INTEGER
+                ) {
+                    const textureType = this._currentRenderTarget.texture?.type;
+                    if (textureType === Constants.TEXTURETYPE_UNSIGNED_INTEGER || textureType === Constants.TEXTURETYPE_UNSIGNED_SHORT) {
+                        ThinEngine._TempClearColorUint32[0] = color.r * 255;
+                        ThinEngine._TempClearColorUint32[1] = color.g * 255;
+                        ThinEngine._TempClearColorUint32[2] = color.b * 255;
+                        ThinEngine._TempClearColorUint32[3] = color.a * 255;
+                        this._gl.clearBufferuiv(this._gl.COLOR, 0, ThinEngine._TempClearColorUint32);
+                        setBackBufferColor = false;
+                    } else {
+                        ThinEngine._TempClearColorInt32[0] = color.r * 255;
+                        ThinEngine._TempClearColorInt32[1] = color.g * 255;
+                        ThinEngine._TempClearColorInt32[2] = color.b * 255;
+                        ThinEngine._TempClearColorInt32[3] = color.a * 255;
+                        this._gl.clearBufferiv(this._gl.COLOR, 0, ThinEngine._TempClearColorInt32);
+                        setBackBufferColor = false;
+                    }
+                }
+            }
+
+            if (setBackBufferColor) {
+                this._gl.clearColor(color.r, color.g, color.b, color.a !== undefined ? color.a : 1.0);
+                mode |= this._gl.COLOR_BUFFER_BIT;
+            }
         }
 
         if (depth) {
@@ -1769,7 +1837,7 @@ export class ThinEngine {
         let width: number;
         let height: number;
 
-        // Requery hardware scaling level to handle zoomed-in resizing.
+        // Re-query hardware scaling level to handle zoomed-in resizing.
         if (this.adaptToDeviceRatio) {
             const devicePixelRatio = IsWindowObjectExist() ? window.devicePixelRatio || 1.0 : 1.0;
             const changeRatio = this._lastDevicePixelRatio / devicePixelRatio;
@@ -1777,9 +1845,22 @@ export class ThinEngine {
             this._hardwareScalingLevel *= changeRatio;
         }
 
-        if (IsWindowObjectExist()) {
-            width = this._renderingCanvas ? this._renderingCanvas.clientWidth || this._renderingCanvas.width : window.innerWidth;
-            height = this._renderingCanvas ? this._renderingCanvas.clientHeight || this._renderingCanvas.height : window.innerHeight;
+        if (IsWindowObjectExist() && IsDocumentAvailable()) {
+            // make sure it is a Node object, and is a part of the document.
+            if (this._renderingCanvas) {
+                const boundingRect = this._renderingCanvas.getBoundingClientRect
+                    ? this._renderingCanvas.getBoundingClientRect()
+                    : {
+                          // fallback to last solution in case the function doesn't exist
+                          width: this._renderingCanvas.width * this._hardwareScalingLevel,
+                          height: this._renderingCanvas.height * this._hardwareScalingLevel,
+                      };
+                width = this._renderingCanvas.clientWidth || boundingRect.width || this._renderingCanvas.width || 100;
+                height = this._renderingCanvas.clientHeight || boundingRect.height || this._renderingCanvas.height || 100;
+            } else {
+                width = window.innerWidth;
+                height = window.innerHeight;
+            }
         } else {
             width = this._renderingCanvas ? this._renderingCanvas.width : 100;
             height = this._renderingCanvas ? this._renderingCanvas.height : 100;
@@ -2871,8 +2952,8 @@ export class ThinEngine {
         const shader = gl.createShader(type === "vertex" ? gl.VERTEX_SHADER : gl.FRAGMENT_SHADER);
 
         if (!shader) {
-            let error = gl.NO_ERROR;
-            let tempError = gl.NO_ERROR;
+            let error: GLenum = gl.NO_ERROR;
+            let tempError: GLenum = gl.NO_ERROR;
             while ((tempError = gl.getError()) !== gl.NO_ERROR) {
                 error = tempError;
             }
@@ -3107,6 +3188,9 @@ export class ThinEngine {
      */
     public _isRenderingStateCompiled(pipelineContext: IPipelineContext): boolean {
         const webGLPipelineContext = pipelineContext as WebGLPipelineContext;
+        if (this._isDisposed || webGLPipelineContext._isDisposed) {
+            return false;
+        }
         if (this._gl.getProgramParameter(webGLPipelineContext.program!, this._caps.parallelShaderCompile!.COMPLETION_STATUS_KHR)) {
             this._finalizePipelineContext(webGLPipelineContext);
             return true;
@@ -3772,8 +3856,8 @@ export class ThinEngine {
      */
     public _getSamplingParameters(samplingMode: number, generateMipMaps: boolean): { min: number; mag: number } {
         const gl = this._gl;
-        let magFilter = gl.NEAREST;
-        let minFilter = gl.NEAREST;
+        let magFilter: GLenum = gl.NEAREST;
+        let minFilter: GLenum = gl.NEAREST;
 
         switch (samplingMode) {
             case Constants.TEXTURE_LINEAR_LINEAR_MIPNEAREST:
@@ -4300,7 +4384,7 @@ export class ThinEngine {
                     : extension === ".jpg" && !texture._useSRGBBuffer
                     ? gl.RGB
                     : texture._useSRGBBuffer
-                    ? gl.SRGB8_ALPHA8
+                    ? this._glSRGBExtensionValues.SRGB8_ALPHA8
                     : gl.RGBA;
                 let texelFormat = format ? this._getInternalFormat(format) : extension === ".jpg" && !texture._useSRGBBuffer ? gl.RGB : gl.RGBA;
 
@@ -4656,7 +4740,7 @@ export class ThinEngine {
     ) {
         const gl = this._gl;
 
-        let target = gl.TEXTURE_2D;
+        let target: GLenum = gl.TEXTURE_2D;
         if (texture.isCube) {
             target = gl.TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex;
         }
@@ -4741,7 +4825,7 @@ export class ThinEngine {
 
         this._unpackFlipY(texture.invertY);
 
-        let target = gl.TEXTURE_2D;
+        let target: GLenum = gl.TEXTURE_2D;
         if (texture.isCube) {
             target = gl.TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex;
         }
@@ -4784,8 +4868,8 @@ export class ThinEngine {
 
         this._unpackFlipY(texture.invertY);
 
-        let targetForBinding = gl.TEXTURE_2D;
-        let target = gl.TEXTURE_2D;
+        let targetForBinding: GLenum = gl.TEXTURE_2D;
+        let target: GLenum = gl.TEXTURE_2D;
         if (texture.isCube) {
             target = gl.TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex;
             targetForBinding = gl.TEXTURE_CUBE_MAP;
@@ -4916,7 +5000,7 @@ export class ThinEngine {
             return this._createRenderBuffer(width, height, samples, gl.DEPTH_STENCIL, gl.DEPTH24_STENCIL8, gl.DEPTH_STENCIL_ATTACHMENT);
         }
         if (generateDepthBuffer) {
-            let depthFormat = gl.DEPTH_COMPONENT16;
+            let depthFormat: GLenum = gl.DEPTH_COMPONENT16;
             if (this._webGLVersion > 1) {
                 depthFormat = gl.DEPTH_COMPONENT32F;
             }
@@ -5187,6 +5271,10 @@ export class ThinEngine {
         // Video
         if ((<VideoTexture>texture).video) {
             this._activeChannel = channel;
+            const videoInternalTexture = (<VideoTexture>texture).getInternalTexture();
+            if (videoInternalTexture) {
+                videoInternalTexture._associatedChannel = channel;
+            }
             (<VideoTexture>texture).update();
         } else if (texture.delayLoadState === Constants.DELAYLOADSTATE_NOTLOADED) {
             // Delay loading
@@ -5588,7 +5676,7 @@ export class ThinEngine {
      * @internal
      */
     public _getInternalFormat(format: number, useSRGBBuffer = false): number {
-        let internalFormat = useSRGBBuffer ? this._gl.SRGB8_ALPHA8 : this._gl.RGBA;
+        let internalFormat: GLenum = useSRGBBuffer ? this._glSRGBExtensionValues.SRGB8_ALPHA8 : this._gl.RGBA;
 
         switch (format) {
             case Constants.TEXTUREFORMAT_ALPHA:
@@ -5607,10 +5695,10 @@ export class ThinEngine {
                 internalFormat = this._gl.RG;
                 break;
             case Constants.TEXTUREFORMAT_RGB:
-                internalFormat = useSRGBBuffer ? this._gl.SRGB : this._gl.RGB;
+                internalFormat = useSRGBBuffer ? this._glSRGBExtensionValues.SRGB : this._gl.RGB;
                 break;
             case Constants.TEXTUREFORMAT_RGBA:
-                internalFormat = useSRGBBuffer ? this._gl.SRGB8_ALPHA8 : this._gl.RGBA;
+                internalFormat = useSRGBBuffer ? this._glSRGBExtensionValues.SRGB8_ALPHA8 : this._gl.RGBA;
                 break;
         }
 
@@ -5648,7 +5736,7 @@ export class ThinEngine {
                     case Constants.TEXTUREFORMAT_LUMINANCE_ALPHA:
                         return this._gl.LUMINANCE_ALPHA;
                     case Constants.TEXTUREFORMAT_RGB:
-                        return useSRGBBuffer ? this._gl.SRGB : this._gl.RGB;
+                        return useSRGBBuffer ? this._glSRGBExtensionValues.SRGB : this._gl.RGB;
                 }
             }
             return this._gl.RGBA;
@@ -5681,9 +5769,9 @@ export class ThinEngine {
                     case Constants.TEXTUREFORMAT_RG:
                         return this._gl.RG8;
                     case Constants.TEXTUREFORMAT_RGB:
-                        return useSRGBBuffer ? this._gl.SRGB8 : this._gl.RGB8; // By default. Other possibilities are RGB565, SRGB8.
+                        return useSRGBBuffer ? this._glSRGBExtensionValues.SRGB8 : this._gl.RGB8; // By default. Other possibilities are RGB565, SRGB8.
                     case Constants.TEXTUREFORMAT_RGBA:
-                        return useSRGBBuffer ? this._gl.SRGB8_ALPHA8 : this._gl.RGBA8; // By default. Other possibilities are RGB5_A1, RGBA4, SRGB8_ALPHA8.
+                        return useSRGBBuffer ? this._glSRGBExtensionValues.SRGB8_ALPHA8 : this._gl.RGBA8; // By default. Other possibilities are RGB5_A1, RGBA4, SRGB8_ALPHA8.
                     case Constants.TEXTUREFORMAT_RED_INTEGER:
                         return this._gl.R8UI;
                     case Constants.TEXTUREFORMAT_RG_INTEGER:
@@ -5800,7 +5888,7 @@ export class ThinEngine {
                 }
         }
 
-        return useSRGBBuffer ? this._gl.SRGB8_ALPHA8 : this._gl.RGBA8;
+        return useSRGBBuffer ? this._glSRGBExtensionValues.SRGB8_ALPHA8 : this._gl.RGBA8;
     }
 
     /**
@@ -6036,10 +6124,7 @@ export class ThinEngine {
                 return requestAnimationFrame(func);
             }
         } else {
-            const { requestPostAnimationFrame, requestAnimationFrame } = requester || window;
-            if (typeof requestPostAnimationFrame === "function") {
-                return requestPostAnimationFrame(func);
-            }
+            const { requestAnimationFrame } = requester || window;
             if (typeof requestAnimationFrame === "function") {
                 return requestAnimationFrame(func);
             }

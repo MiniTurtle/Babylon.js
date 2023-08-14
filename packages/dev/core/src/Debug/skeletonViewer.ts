@@ -517,7 +517,7 @@ export class SkeletonViewer {
         }
 
         if (parentBone) {
-            tmat.multiplyToRef(parentBone.getAbsoluteTransform(), tmat);
+            tmat.multiplyToRef(parentBone.getAbsoluteMatrix(), tmat);
         }
 
         tmat.multiplyToRef(meshMat, tmat);
@@ -600,7 +600,7 @@ export class SkeletonViewer {
         }
 
         this._getAbsoluteBindPoseToRef(bone.getParent(), matrix);
-        bone.getBaseMatrix().multiplyToRef(matrix, matrix);
+        bone.getBindMatrix().multiplyToRef(matrix, matrix);
         return;
     }
 
@@ -634,7 +634,7 @@ export class SkeletonViewer {
             }
 
             if (this.autoUpdateBonesMatrices) {
-                this.skeleton.computeAbsoluteTransforms();
+                this.skeleton.computeAbsoluteMatrices();
             }
 
             let longestBoneLength = Number.NEGATIVE_INFINITY;
@@ -656,7 +656,7 @@ export class SkeletonViewer {
 
                 bone.children.forEach((bc) => {
                     const childAbsoluteBindPoseTransform: Matrix = new Matrix();
-                    bc.getBaseMatrix().multiplyToRef(boneAbsoluteBindPoseTransform, childAbsoluteBindPoseTransform);
+                    bc.getLocalMatrix().multiplyToRef(boneAbsoluteBindPoseTransform, childAbsoluteBindPoseTransform);
                     const childPoint = new Vector3();
                     childAbsoluteBindPoseTransform.decompose(undefined, undefined, childPoint);
                     const distanceFromParent = Vector3.Distance(anchorPoint, childPoint);
@@ -872,7 +872,7 @@ export class SkeletonViewer {
         }
 
         if (this.autoUpdateBonesMatrices) {
-            this.skeleton.computeAbsoluteTransforms();
+            this.skeleton.computeAbsoluteMatrices();
         }
 
         if (this.skeleton.bones[0].length === undefined) {

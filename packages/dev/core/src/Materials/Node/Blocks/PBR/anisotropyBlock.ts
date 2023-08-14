@@ -49,6 +49,7 @@ export class AnisotropyBlock extends NodeMaterialBlock {
             NodeMaterialBlockTargets.VertexAndFragment,
             new NodeMaterialConnectionPointCustomObject("TBN", this, NodeMaterialConnectionPointDirection.Input, TBNBlock, "TBNBlock")
         );
+        this.registerInput("roughness", NodeMaterialBlockConnectionPointTypes.Float, true, NodeMaterialBlockTargets.Fragment);
 
         this.registerOutput(
             "anisotropy",
@@ -112,6 +113,13 @@ export class AnisotropyBlock extends NodeMaterialBlock {
     }
 
     /**
+     * Gets the roughness input component
+     */
+    public get roughness(): NodeMaterialConnectionPoint {
+        return this._inputs[5];
+    }
+
+    /**
      * Gets the anisotropy object output component
      */
     public get anisotropy(): NodeMaterialConnectionPoint {
@@ -146,10 +154,10 @@ export class AnisotropyBlock extends NodeMaterialBlock {
             #endif
             `;
         } else if (worldTangent.isConnected) {
-            code += `vec3 tbnNormal = normalize(${worldNormal.associatedVariableName}.xyz);\r\n`;
-            code += `vec3 tbnTangent = normalize(${worldTangent.associatedVariableName}.xyz);\r\n`;
-            code += `vec3 tbnBitangent = cross(tbnNormal, tbnTangent) * ${this._tangentCorrectionFactorName};\r\n`;
-            code += `mat3 vTBN = mat3(tbnTangent, tbnBitangent, tbnNormal);\r\n`;
+            code += `vec3 tbnNormal = normalize(${worldNormal.associatedVariableName}.xyz);\n`;
+            code += `vec3 tbnTangent = normalize(${worldTangent.associatedVariableName}.xyz);\n`;
+            code += `vec3 tbnBitangent = cross(tbnNormal, tbnTangent) * ${this._tangentCorrectionFactorName};\n`;
+            code += `mat3 vTBN = mat3(tbnTangent, tbnBitangent, tbnNormal);\n`;
         }
 
         code += `
@@ -159,7 +167,7 @@ export class AnisotropyBlock extends NodeMaterialBlock {
                 mat3 TBN = cotangent_frame(${worldNormal.associatedVariableName + ".xyz"}, ${"v_" + worldPosition.associatedVariableName + ".xyz"}, ${
             uv.isConnected ? uv.associatedVariableName : "vec2(0.)"
         }, vec2(1., 1.));
-            #endif\r\n`;
+            #endif\n`;
 
         state._emitFunctionFromInclude("bumpFragmentMainFunctions", comments, {
             replaceStrings: [tangentReplaceString],
@@ -183,10 +191,12 @@ export class AnisotropyBlock extends NodeMaterialBlock {
 
         const intensity = this.intensity.isConnected ? this.intensity.associatedVariableName : "1.0";
         const direction = this.direction.isConnected ? this.direction.associatedVariableName : "vec2(1., 0.)";
+        const roughness = this.roughness.isConnected ? this.roughness.associatedVariableName : "0.";
 
         code += `anisotropicOutParams anisotropicOut;
             anisotropicBlock(
                 vec3(${direction}, ${intensity}),
+                ${roughness},
             #ifdef ANISOTROPIC_TEXTURE
                 vec3(0.),
             #endif
@@ -194,7 +204,7 @@ export class AnisotropyBlock extends NodeMaterialBlock {
                 normalW,
                 viewDirectionW,
                 anisotropicOut
-            );\r\n`;
+            );\n`;
 
         return code;
     }
@@ -204,6 +214,7 @@ export class AnisotropyBlock extends NodeMaterialBlock {
 
         defines.setValue("ANISOTROPIC", true);
         defines.setValue("ANISOTROPIC_TEXTURE", false, true);
+        defines.setValue("ANISOTROPIC_LEGACY", !this.roughness.isConnected);
     }
 
     public bind(effect: Effect, nodeMaterial: NodeMaterial, mesh?: Mesh) {

@@ -17,6 +17,7 @@ import "../../../Shaders/ShadersInclude/helperFunctions";
 import { ImageSourceBlock } from "./Dual/imageSourceBlock";
 import { NodeMaterialConnectionPointCustomObject } from "../nodeMaterialConnectionPointCustomObject";
 import { EngineStore } from "../../../Engines/engineStore";
+import { editableInPropertyPage, PropertyTypeForEdition } from "../../../Decorators/nodeDecorator";
 
 /**
  * Block used to read a texture with triplanar mapping (see "boxmap" in https://iquilezles.org/articles/biplanar/)
@@ -28,6 +29,12 @@ export class TriPlanarBlock extends NodeMaterialBlock {
     private _samplerName: string;
     private _textureInfoName: string;
     private _imageSource: Nullable<ImageSourceBlock>;
+
+    /**
+     * Project the texture(s) for a better fit to a cube
+     */
+    @editableInPropertyPage("Project as cube", PropertyTypeForEdition.Boolean, "ADVANCED", { notifiers: { update: true } })
+    public projectAsCube: boolean = false;
 
     protected _texture: Nullable<Texture>;
     /**
@@ -358,15 +365,43 @@ export class TriPlanarBlock extends NodeMaterialBlock {
         const x = state._getFreeVariableName("x");
         const y = state._getFreeVariableName("y");
         const z = state._getFreeVariableName("z");
-        const w = state._getFreeVariableName("z");
+        const w = state._getFreeVariableName("w");
+        const n = state._getFreeVariableName("n");
+        const uvx = state._getFreeVariableName("uvx");
+        const uvy = state._getFreeVariableName("uvy");
+        const uvz = state._getFreeVariableName("uvz");
 
         state.compilationString += `
-            vec4 ${x} = texture2D(${samplerName}, ${this.position.associatedVariableName}.yz);
-            vec4 ${y} = texture2D(${samplerYName}, ${this.position.associatedVariableName}.zx);
-            vec4 ${z} = texture2D(${samplerZName}, ${this.position.associatedVariableName}.xy);
-            
+            vec3 ${n} = ${this.normal.associatedVariableName}.xyz;
+
+            vec2 ${uvx} = ${this.position.associatedVariableName}.yz;
+            vec2 ${uvy} = ${this.position.associatedVariableName}.zx;
+            vec2 ${uvz} = ${this.position.associatedVariableName}.xy;
+        `;
+
+        if (this.projectAsCube) {
+            state.compilationString += `
+                ${uvx}.xy = ${uvx}.yx;
+
+                if (${n}.x >= 0.0) {
+                    ${uvx}.x = -${uvx}.x;
+                }
+                if (${n}.y < 0.0) {
+                    ${uvy}.y = -${uvy}.y;
+                }
+                if (${n}.z < 0.0) {
+                    ${uvz}.x = -${uvz}.x;
+                }
+            `;
+        }
+
+        state.compilationString += `
+            vec4 ${x} = texture2D(${samplerName}, ${uvx});
+            vec4 ${y} = texture2D(${samplerYName}, ${uvy});
+            vec4 ${z} = texture2D(${samplerZName}, ${uvz});
+           
             // blend weights
-            vec3 ${w} = pow(abs(${this.normal.associatedVariableName}.xyz), vec3(${sharpness}));
+            vec3 ${w} = pow(abs(${n}), vec3(${sharpness}));
 
             // blend and return
             vec4 ${this._tempTextureRead} = (${x}*${w}.x + ${y}*${w}.y + ${z}*${w}.z) / (${w}.x + ${w}.y + ${w}.z);        
@@ -397,7 +432,7 @@ export class TriPlanarBlock extends NodeMaterialBlock {
             complement = ` * ${this._textureInfoName}`;
         }
 
-        state.compilationString += `${this._declareOutput(output, state)} = ${this._tempTextureRead}.${swizzle}${complement};\r\n`;
+        state.compilationString += `${this._declareOutput(output, state)} = ${this._tempTextureRead}.${swizzle}${complement};\n`;
         this._generateConversionCode(state, output, swizzle);
     }
 
@@ -449,25 +484,26 @@ export class TriPlanarBlock extends NodeMaterialBlock {
     protected _dumpPropertiesCode() {
         let codeString = super._dumpPropertiesCode();
 
-        codeString += `${this._codeVariableName}.convertToGammaSpace = ${this.convertToGammaSpace};\r\n`;
-        codeString += `${this._codeVariableName}.convertToLinearSpace = ${this.convertToLinearSpace};\r\n`;
-        codeString += `${this._codeVariableName}.disableLevelMultiplication = ${this.disableLevelMultiplication};\r\n`;
+        codeString += `${this._codeVariableName}.convertToGammaSpace = ${this.convertToGammaSpace};\n`;
+        codeString += `${this._codeVariableName}.convertToLinearSpace = ${this.convertToLinearSpace};\n`;
+        codeString += `${this._codeVariableName}.disableLevelMultiplication = ${this.disableLevelMultiplication};\n`;
+        codeString += `${this._codeVariableName}.projectAsCube = ${this.projectAsCube};\n`;
 
         if (!this.texture) {
             return codeString;
         }
 
-        codeString += `${this._codeVariableName}.texture = new BABYLON.Texture("${this.texture.name}", null, ${this.texture.noMipmap}, ${this.texture.invertY}, ${this.texture.samplingMode});\r\n`;
-        codeString += `${this._codeVariableName}.texture.wrapU = ${this.texture.wrapU};\r\n`;
-        codeString += `${this._codeVariableName}.texture.wrapV = ${this.texture.wrapV};\r\n`;
-        codeString += `${this._codeVariableName}.texture.uAng = ${this.texture.uAng};\r\n`;
-        codeString += `${this._codeVariableName}.texture.vAng = ${this.texture.vAng};\r\n`;
-        codeString += `${this._codeVariableName}.texture.wAng = ${this.texture.wAng};\r\n`;
-        codeString += `${this._codeVariableName}.texture.uOffset = ${this.texture.uOffset};\r\n`;
-        codeString += `${this._codeVariableName}.texture.vOffset = ${this.texture.vOffset};\r\n`;
-        codeString += `${this._codeVariableName}.texture.uScale = ${this.texture.uScale};\r\n`;
-        codeString += `${this._codeVariableName}.texture.vScale = ${this.texture.vScale};\r\n`;
-        codeString += `${this._codeVariableName}.texture.coordinatesMode = ${this.texture.coordinatesMode};\r\n`;
+        codeString += `${this._codeVariableName}.texture = new BABYLON.Texture("${this.texture.name}", null, ${this.texture.noMipmap}, ${this.texture.invertY}, ${this.texture.samplingMode});\n`;
+        codeString += `${this._codeVariableName}.texture.wrapU = ${this.texture.wrapU};\n`;
+        codeString += `${this._codeVariableName}.texture.wrapV = ${this.texture.wrapV};\n`;
+        codeString += `${this._codeVariableName}.texture.uAng = ${this.texture.uAng};\n`;
+        codeString += `${this._codeVariableName}.texture.vAng = ${this.texture.vAng};\n`;
+        codeString += `${this._codeVariableName}.texture.wAng = ${this.texture.wAng};\n`;
+        codeString += `${this._codeVariableName}.texture.uOffset = ${this.texture.uOffset};\n`;
+        codeString += `${this._codeVariableName}.texture.vOffset = ${this.texture.vOffset};\n`;
+        codeString += `${this._codeVariableName}.texture.uScale = ${this.texture.uScale};\n`;
+        codeString += `${this._codeVariableName}.texture.vScale = ${this.texture.vScale};\n`;
+        codeString += `${this._codeVariableName}.texture.coordinatesMode = ${this.texture.coordinatesMode};\n`;
 
         return codeString;
     }
@@ -478,6 +514,7 @@ export class TriPlanarBlock extends NodeMaterialBlock {
         serializationObject.convertToGammaSpace = this.convertToGammaSpace;
         serializationObject.convertToLinearSpace = this.convertToLinearSpace;
         serializationObject.disableLevelMultiplication = this.disableLevelMultiplication;
+        serializationObject.projectAsCube = this.projectAsCube;
         if (!this.hasImageSource && this.texture && !this.texture.isRenderTarget && this.texture.getClassName() !== "VideoTexture") {
             serializationObject.texture = this.texture.serialize();
         }
@@ -491,6 +528,7 @@ export class TriPlanarBlock extends NodeMaterialBlock {
         this.convertToGammaSpace = serializationObject.convertToGammaSpace;
         this.convertToLinearSpace = !!serializationObject.convertToLinearSpace;
         this.disableLevelMultiplication = !!serializationObject.disableLevelMultiplication;
+        this.projectAsCube = !!serializationObject.projectAsCube;
 
         if (serializationObject.texture && !NodeMaterial.IgnoreTexturesAtLoadTime && serializationObject.texture.url !== undefined) {
             rootUrl = serializationObject.texture.url.indexOf("data:") === 0 ? "" : rootUrl;

@@ -1,12 +1,18 @@
 import { ShaderLanguage } from "../../Materials/shaderLanguage";
 import type { IShaderProcessor } from "../Processors/iShaderProcessor";
 
+const varyingRegex = /(flat\s)?\s*varying\s*.*/;
+
 /** @internal */
 export class WebGL2ShaderProcessor implements IShaderProcessor {
     public shaderLanguage = ShaderLanguage.GLSL;
 
     public attributeProcessor(attribute: string) {
         return attribute.replace("attribute", "in");
+    }
+
+    public varyingCheck(varying: string, _isFragment: boolean) {
+        return varyingRegex.test(varying);
     }
 
     public varyingProcessor(varying: string, isFragment: boolean) {
@@ -23,13 +29,15 @@ export class WebGL2ShaderProcessor implements IShaderProcessor {
         // Replace instructions
         code = code.replace(/texture2D\s*\(/g, "texture(");
         if (isFragment) {
+            const hasOutput = code.search(/layout *\(location *= *0\) *out/g) !== -1;
+
             code = code.replace(/texture2DLodEXT\s*\(/g, "textureLod(");
             code = code.replace(/textureCubeLodEXT\s*\(/g, "textureLod(");
             code = code.replace(/textureCube\s*\(/g, "texture(");
             code = code.replace(/gl_FragDepthEXT/g, "gl_FragDepth");
             code = code.replace(/gl_FragColor/g, "glFragColor");
             code = code.replace(/gl_FragData/g, "glFragData");
-            code = code.replace(/void\s+?main\s*\(/g, (hasDrawBuffersExtension ? "" : "layout(location = 0) out vec4 glFragColor;\n") + "void main(");
+            code = code.replace(/void\s+?main\s*\(/g, (hasDrawBuffersExtension || hasOutput ? "" : "layout(location = 0) out vec4 glFragColor;\n") + "void main(");
         } else {
             const hasMultiviewExtension = defines.indexOf("#define MULTIVIEW") !== -1;
             if (hasMultiviewExtension) {

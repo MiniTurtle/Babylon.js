@@ -38,11 +38,11 @@ import { Axis } from "../Maths/math.axis";
 import type { IParticleSystem } from "../Particles/IParticleSystem";
 import { RegisterClass } from "../Misc/typeStore";
 
-declare type Ray = import("../Culling/ray").Ray;
-declare type Collider = import("../Collisions/collider").Collider;
-declare type TrianglePickingPredicate = import("../Culling/ray").TrianglePickingPredicate;
-declare type RenderingGroup = import("../Rendering/renderingGroup").RenderingGroup;
-declare type IEdgesRendererOptions = import("../Rendering/edgesRenderer").IEdgesRendererOptions;
+import type { Ray } from "../Culling/ray";
+import type { Collider } from "../Collisions/collider";
+import type { TrianglePickingPredicate } from "../Culling/ray";
+import type { RenderingGroup } from "../Rendering/renderingGroup";
+import type { IEdgesRendererOptions } from "../Rendering/edgesRenderer";
 
 /** @internal */
 // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -409,7 +409,10 @@ export class AbstractMesh extends TransformNode implements IDisposable, ICullabl
         this._internalAbstractMeshDataInfo._visibility = value;
 
         if ((oldValue === 1 && value !== 1) || (oldValue !== 1 && value === 1)) {
-            this._markSubMeshesAsMiscDirty();
+            this._markSubMeshesAsDirty((defines) => {
+                defines.markAsMiscDirty();
+                defines.markAsPrePassDirty();
+            });
         }
     }
 
@@ -584,7 +587,7 @@ export class AbstractMesh extends TransformNode implements IDisposable, ICullabl
     }
 
     /**
-     * Gets or sets a boolean indicating that bone animations must be computed by the CPU (false by default)
+     * Gets or sets a boolean indicating that bone animations must be computed by the GPU (true by default)
      */
     public get computeBonesUsingShaders(): boolean {
         return this._internalAbstractMeshDataInfo._computeBonesUsingShaders;
@@ -1867,8 +1870,9 @@ export class AbstractMesh extends TransformNode implements IDisposable, ICullabl
     }
 
     /**
-     * Checks if the passed Ray intersects with the mesh
-     * @param ray defines the ray to use
+     * Checks if the passed Ray intersects with the mesh. A mesh triangle can be picked both from its front and back sides,
+     * irrespective of orientation.
+     * @param ray defines the ray to use. It should be in the mesh's LOCAL coordinate space.
      * @param fastCheck defines if fast mode (but less precise) must be used (false by default)
      * @param trianglePredicate defines an optional predicate used to select faces when a mesh intersection is detected
      * @param onlyBoundingInfo defines a boolean indicating if picking should only happen using bounding info (false by default)
@@ -1886,7 +1890,8 @@ export class AbstractMesh extends TransformNode implements IDisposable, ICullabl
         skipBoundingInfo = false
     ): PickingInfo {
         const pickingInfo = new PickingInfo();
-        const intersectionThreshold = this.getClassName() === "InstancedLinesMesh" || this.getClassName() === "LinesMesh" ? (this as any).intersectionThreshold : 0;
+        const className = this.getClassName();
+        const intersectionThreshold = className === "InstancedLinesMesh" || className === "LinesMesh" || className === "GreasedLineMesh" ? (this as any).intersectionThreshold : 0;
         const boundingInfo = this.getBoundingInfo();
         if (!this.subMeshes) {
             return pickingInfo;

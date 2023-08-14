@@ -197,6 +197,8 @@ export class StandardMaterialDefines extends MaterialDefines implements IImagePr
     public IS_REFRACTION_LINEAR = false;
     public EXPOSURE = false;
 
+    public DECAL_AFTER_DETAIL = false;
+
     /**
      * Initializes the Standard Material defines.
      * @param externalProperties The external properties
@@ -563,6 +565,14 @@ export class StandardMaterial extends PushMaterial {
      */
     @expandToProperty("_markAllSubMeshesAsTexturesDirty")
     public twoSidedLighting: boolean;
+
+    @serialize("applyDecalMapAfterDetailMap")
+    private _applyDecalMapAfterDetailMap = false;
+    /**
+     * If sets to true, the decal map will be applied after the detail map. Else, it is applied before (default: false)
+     */
+    @expandToProperty("_markAllSubMeshesAsMiscDirty")
+    public applyDecalMapAfterDetailMap: boolean;
 
     /**
      * Default configuration related to image processing available in the standard Material.
@@ -1179,7 +1189,8 @@ export class StandardMaterial extends PushMaterial {
             this.pointsCloud,
             this.fogEnabled,
             this._shouldTurnAlphaTestOn(mesh) || this._forceAlphaTest,
-            defines
+            defines,
+            this._applyDecalMapAfterDetailMap
         );
 
         // Values that need to be evaluated on every frame
@@ -1374,6 +1385,8 @@ export class StandardMaterial extends PushMaterial {
 
             const uniformBuffers = ["Material", "Scene", "Mesh"];
 
+            const indexParameters = { maxSimultaneousLights: this._maxSimultaneousLights, maxSimultaneousMorphTargets: defines.NUM_MORPH_INFLUENCERS };
+
             this._eventInfo.fallbacks = fallbacks;
             this._eventInfo.fallbackRank = 0;
             this._eventInfo.defines = defines;
@@ -1383,6 +1396,7 @@ export class StandardMaterial extends PushMaterial {
             this._eventInfo.uniformBuffersNames = uniformBuffers;
             this._eventInfo.customCode = undefined;
             this._eventInfo.mesh = mesh;
+            this._eventInfo.indexParameters = indexParameters;
             this._callbackPluginEventGeneric(MaterialPluginEvent.PrepareEffect, this._eventInfo);
 
             PrePassConfiguration.AddUniforms(uniforms);
@@ -1423,7 +1437,7 @@ export class StandardMaterial extends PushMaterial {
                     fallbacks: fallbacks,
                     onCompiled: this.onCompiled,
                     onError: this.onError,
-                    indexParameters: { maxSimultaneousLights: this._maxSimultaneousLights, maxSimultaneousMorphTargets: defines.NUM_MORPH_INFLUENCERS },
+                    indexParameters,
                     processFinalCode: csnrOptions.processFinalCode,
                     processCodeAfterIncludes: this._eventInfo.customCode,
                     multiTarget: defines.PREPASS,
@@ -1976,15 +1990,19 @@ export class StandardMaterial extends PushMaterial {
     /**
      * Makes a duplicate of the material, and gives it a new name
      * @param name defines the new name for the duplicated material
+     * @param cloneTexturesOnlyOnce - if a texture is used in more than one channel (e.g diffuse and opacity), only clone it once and reuse it on the other channels. Default false.
+     * @param rootUrl defines the root URL to use to load textures
      * @returns the cloned material
      */
-    public clone(name: string): StandardMaterial {
-        const result = SerializationHelper.Clone(() => new StandardMaterial(name, this.getScene()), this);
+    public clone(name: string, cloneTexturesOnlyOnce: boolean = true, rootUrl = ""): StandardMaterial {
+        const result = SerializationHelper.Clone(() => new StandardMaterial(name, this.getScene()), this, { cloneTexturesOnlyOnce });
 
         result.name = name;
         result.id = name;
 
         this.stencil.copyTo(result.stencil);
+
+        this._clonePlugins(result, rootUrl);
 
         return result;
     }
@@ -2002,6 +2020,8 @@ export class StandardMaterial extends PushMaterial {
         if (source.stencil) {
             material.stencil.parse(source.stencil, scene, rootUrl);
         }
+
+        Material._parsePlugins(source, material, scene, rootUrl);
 
         return material;
     }

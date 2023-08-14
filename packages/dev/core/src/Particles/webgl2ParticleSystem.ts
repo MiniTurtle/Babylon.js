@@ -15,7 +15,7 @@ import { RegisterClass } from "../Misc/typeStore";
 import "../Shaders/gpuUpdateParticles.fragment";
 import "../Shaders/gpuUpdateParticles.vertex";
 
-declare type Engine = import("../Engines/engine").Engine;
+import type { Engine } from "../Engines/engine";
 
 /** @internal */
 export class WebGL2ParticleSystem implements IGPUParticleSystemPlatform {
@@ -94,6 +94,12 @@ export class WebGL2ParticleSystem implements IGPUParticleSystemPlatform {
             maxSimultaneousLights: 0,
             transformFeedbackVaryings: [],
         };
+    }
+
+    public contextLost(): void {
+        this._updateEffect = undefined as any;
+        this._renderVAO.length = 0;
+        this._updateVAO.length = 0;
     }
 
     public isUpdateBufferCreated(): boolean {
