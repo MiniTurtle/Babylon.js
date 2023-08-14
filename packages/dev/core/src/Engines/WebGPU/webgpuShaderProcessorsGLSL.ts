@@ -48,7 +48,7 @@ export class WebGPUShaderProcessorGLSL extends WebGPUShaderProcessor {
     }
 
     public preProcessShaderCode(code: string, isFragment: boolean): string {
-        const ubDeclaration = `// Internals UBO\r\nuniform ${WebGPUShaderProcessor.InternalsUBOName} {\nfloat yFactor_;\nfloat textureOutputHeight_;\n};\n`;
+        const ubDeclaration = `// Internals UBO\nuniform ${WebGPUShaderProcessor.InternalsUBOName} {\nfloat yFactor_;\nfloat textureOutputHeight_;\n};\n`;
         const alreadyInjected = code.indexOf("// Internals UBO") !== -1;
 
         if (isFragment) {
@@ -67,18 +67,29 @@ export class WebGPUShaderProcessorGLSL extends WebGPUShaderProcessor {
         return alreadyInjected ? code : ubDeclaration + code;
     }
 
+    public varyingCheck(varying: string, isFragment: boolean) {
+        const outRegex = /(flat\s)?\s*\bout\b/;
+        const inRegex = /(flat\s)?\s*\bin\b/;
+        const varyingRegex = /(flat\s)?\s*\bvarying\b/;
+
+        const regex = isFragment && this._fragmentIsGLES3 ? inRegex : !isFragment && this._vertexIsGLES3 ? outRegex : varyingRegex;
+
+        return regex.test(varying);
+    }
+
     public varyingProcessor(varying: string, isFragment: boolean, preProcessors: { [key: string]: string }) {
         this._preProcessors = preProcessors;
 
-        const outRegex = /\s*out\s+(?:(?:highp)?|(?:lowp)?)\s*(\S+)\s+(\S+)\s*;/gm;
-        const inRegex = /\s*in\s+(?:(?:highp)?|(?:lowp)?)\s*(\S+)\s+(\S+)\s*;/gm;
-        const varyingRegex = /\s*varying\s+(?:(?:highp)?|(?:lowp)?)\s*(\S+)\s+(\S+)\s*;/gm;
+        const outRegex = /\s*(flat)?\s*out\s+(?:(?:highp)?|(?:lowp)?)\s*(\S+)\s+(\S+)\s*;/gm;
+        const inRegex = /\s*(flat)?\s*in\s+(?:(?:highp)?|(?:lowp)?)\s*(\S+)\s+(\S+)\s*;/gm;
+        const varyingRegex = /\s*(flat)?\s*varying\s+(?:(?:highp)?|(?:lowp)?)\s*(\S+)\s+(\S+)\s*;/gm;
 
         const regex = isFragment && this._fragmentIsGLES3 ? inRegex : !isFragment && this._vertexIsGLES3 ? outRegex : varyingRegex;
         const match = regex.exec(varying);
         if (match !== null) {
-            const varyingType = match[1];
-            const name = match[2];
+            const interpolationQualifier = match[1] ?? "";
+            const varyingType = match[2];
+            const name = match[3];
             let location: number;
             if (isFragment) {
                 location = this._webgpuProcessingContext.availableVaryings[name];
@@ -89,10 +100,13 @@ export class WebGPUShaderProcessorGLSL extends WebGPUShaderProcessor {
             } else {
                 location = this._webgpuProcessingContext.getVaryingNextLocation(varyingType, this._getArraySize(name, varyingType, preProcessors)[2]);
                 this._webgpuProcessingContext.availableVaryings[name] = location;
-                this._missingVaryings[location] = `layout(location = ${location}) in ${varyingType} ${name};`;
+                this._missingVaryings[location] = `layout(location = ${location}) ${interpolationQualifier} in ${varyingType} ${name};`;
             }
 
-            varying = varying.replace(match[0], location === undefined ? "" : `layout(location = ${location}) ${isFragment ? "in" : "out"} ${varyingType} ${name};`);
+            varying = varying.replace(
+                match[0],
+                location === undefined ? "" : `layout(location = ${location}) ${interpolationQualifier} ${isFragment ? "in" : "out"} ${varyingType} ${name};`
+            );
         }
         return varying;
     }
@@ -186,22 +200,22 @@ export class WebGPUShaderProcessorGLSL extends WebGPUShaderProcessor {
                 // Manage textures and samplers.
                 if (!isTextureArray) {
                     arraySize = 1;
-                    uniform = `layout(set = ${samplerGroupIndex}, binding = ${samplerBindingIndex}) uniform ${componentType}${samplerType} ${samplerName};
-                        layout(set = ${textureInfo.textures[0].groupIndex}, binding = ${textureInfo.textures[0].bindingIndex}) uniform ${textureType} ${name}Texture;
+                    uniform = `layout(set = ${samplerGroupIndex}, binding = ${samplerBindingIndex}) uniform ${samplerType} ${samplerName};
+                        layout(set = ${textureInfo.textures[0].groupIndex}, binding = ${textureInfo.textures[0].bindingIndex}) uniform ${componentType}${textureType} ${name}Texture;
                         #define ${name} ${componentType}${samplerFunction}(${name}Texture, ${samplerName})`;
                 } else {
                     const layouts = [];
                     layouts.push(`layout(set = ${samplerGroupIndex}, binding = ${samplerBindingIndex}) uniform ${componentType}${samplerType} ${samplerName};`);
-                    uniform = `\r\n`;
+                    uniform = `\n`;
                     for (let i = 0; i < arraySize; ++i) {
                         const textureSetIndex = textureInfo.textures[i].groupIndex;
                         const textureBindingIndex = textureInfo.textures[i].bindingIndex;
 
                         layouts.push(`layout(set = ${textureSetIndex}, binding = ${textureBindingIndex}) uniform ${textureType} ${name}Texture${i};`);
 
-                        uniform += `${i > 0 ? "\r\n" : ""}#define ${name}${i} ${componentType}${samplerFunction}(${name}Texture${i}, ${samplerName})`;
+                        uniform += `${i > 0 ? "\n" : ""}#define ${name}${i} ${componentType}${samplerFunction}(${name}Texture${i}, ${samplerName})`;
                     }
-                    uniform = layouts.join("\r\n") + uniform;
+                    uniform = layouts.join("\n") + uniform;
                     this._textureArrayProcessing.push(name);
                 }
 
@@ -269,6 +283,7 @@ export class WebGPUShaderProcessorGLSL extends WebGPUShaderProcessor {
             `;
 
             const injectCode = hasFragCoord ? "vec4 glFragCoord_;\n" : "";
+            const hasOutput = code.search(/layout *\(location *= *0\) *out/g) !== -1;
 
             code = code.replace(/texture2DLodEXT\s*\(/g, "textureLod(");
             code = code.replace(/textureCubeLodEXT\s*\(/g, "textureLod(");
@@ -278,7 +293,7 @@ export class WebGPUShaderProcessorGLSL extends WebGPUShaderProcessor {
             code = code.replace(/gl_FragData/g, "glFragData");
             code = code.replace(/gl_FragCoord/g, "glFragCoord_");
             if (!this._fragmentIsGLES3) {
-                code = code.replace(/void\s+?main\s*\(/g, (hasDrawBuffersExtension ? "" : "layout(location = 0) out vec4 glFragColor;\n") + "void main(");
+                code = code.replace(/void\s+?main\s*\(/g, (hasDrawBuffersExtension || hasOutput ? "" : "layout(location = 0) out vec4 glFragColor;\n") + "void main(");
             } else {
                 const match = /^\s*out\s+\S+\s+\S+\s*;/gm.exec(code);
                 if (match !== null) {

@@ -6,7 +6,7 @@ import { Vector3 } from "../Maths/math.vector";
 import { Color3 } from "../Maths/math.color";
 import type { AbstractMesh } from "../Meshes/abstractMesh";
 import type { Mesh } from "../Meshes/mesh";
-import type { GizmoAxisCache, IGizmo } from "./gizmo";
+import type { GizmoAnchorPoint, GizmoCoordinatesMode, GizmoAxisCache, IGizmo } from "./gizmo";
 import { Gizmo } from "./gizmo";
 import type { IPlaneRotationGizmo } from "./planeRotationGizmo";
 import { PlaneRotationGizmo } from "./planeRotationGizmo";
@@ -32,6 +32,8 @@ export interface IRotationGizmo extends IGizmo {
     onDragEndObservable: Observable<unknown>;
     /** Drag distance in babylon units that the gizmo will snap to when dragged */
     snapDistance: number;
+    /** Custom sensitivity value for the drag strength */
+    sensitivity: number;
     /**
      * Builds Gizmo Axis Cache to enable features such as hover state preservation and graying out other axis during manipulation
      * @param mesh Axis gizmo mesh
@@ -101,6 +103,7 @@ export class RotationGizmo extends Gizmo implements IRotationGizmo {
     protected _meshAttached: Nullable<AbstractMesh>;
     protected _nodeAttached: Nullable<Node>;
     protected _observables: Observer<PointerInfo>[] = [];
+    protected _sensitivity: number = 1;
 
     /** Node Caching for quick lookup */
     protected _gizmoAxisCache: Map<Mesh, GizmoAxisCache> = new Map();
@@ -141,6 +144,21 @@ export class RotationGizmo extends Gizmo implements IRotationGizmo {
         if (this._nodeAttached && (<TransformNode>this._nodeAttached).billboardMode) {
             console.log("Rotation Gizmo will not work with transforms in billboard mode.");
         }
+    }
+
+    /**
+     * Sensitivity factor for dragging (Default: 1)
+     */
+    public set sensitivity(value: number) {
+        this._sensitivity = value;
+        [this.xGizmo, this.yGizmo, this.zGizmo].forEach((gizmo) => {
+            if (gizmo) {
+                gizmo.sensitivity = value;
+            }
+        });
+    }
+    public get sensitivity() {
+        return this._sensitivity;
     }
 
     /**
@@ -228,6 +246,27 @@ export class RotationGizmo extends Gizmo implements IRotationGizmo {
     }
     public get updateGizmoPositionToMatchAttachedMesh() {
         return this.xGizmo.updateGizmoPositionToMatchAttachedMesh;
+    }
+
+    public set anchorPoint(value: GizmoAnchorPoint) {
+        this._anchorPoint = value;
+        [this.xGizmo, this.yGizmo, this.zGizmo].forEach((gizmo) => {
+            gizmo.anchorPoint = value;
+        });
+    }
+    public get anchorPoint() {
+        return this._anchorPoint;
+    }
+
+    /**
+     * Set the coordinate system to use. By default it's local.
+     * But it's possible for a user to tweak so its local for translation and world for rotation.
+     * In that case, setting the coordinate system will change `updateGizmoRotationToMatchAttachedMesh` and `updateGizmoPositionToMatchAttachedMesh`
+     */
+    public set coordinatesMode(coordinatesMode: GizmoCoordinatesMode) {
+        [this.xGizmo, this.yGizmo, this.zGizmo].forEach((gizmo) => {
+            gizmo.coordinatesMode = coordinatesMode;
+        });
     }
 
     public set updateScale(value: boolean) {

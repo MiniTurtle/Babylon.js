@@ -4,7 +4,7 @@ import type { Nullable } from "./types";
 import { Matrix, Vector3 } from "./Maths/math.vector";
 import type { Engine } from "./Engines/engine";
 import type { IBehaviorAware, Behavior } from "./Behaviors/behavior";
-import { serialize } from "./Misc/decorators";
+import { SerializationHelper, serialize } from "./Misc/decorators";
 import type { Observer } from "./Misc/observable";
 import { Observable } from "./Misc/observable";
 import { EngineStore } from "./Engines/engineStore";
@@ -13,12 +13,11 @@ import type { AbstractActionManager } from "./Actions/abstractActionManager";
 import type { IInspectable } from "./Misc/iInspectable";
 import type { AbstractScene } from "./abstractScene";
 import type { IAccessibilityTag } from "./IAccessibilityTag";
-
-declare type Animatable = import("./Animations/animatable").Animatable;
-declare type AnimationPropertiesOverride = import("./Animations/animationPropertiesOverride").AnimationPropertiesOverride;
-declare type Animation = import("./Animations/animation").Animation;
-declare type AnimationRange = import("./Animations/animationRange").AnimationRange;
-declare type AbstractMesh = import("./Meshes/abstractMesh").AbstractMesh;
+import type { AnimationRange } from "./Animations/animationRange";
+import type { AnimationPropertiesOverride } from "./Animations/animationPropertiesOverride";
+import type { AbstractMesh } from "./Meshes/abstractMesh";
+import type { Animation } from "./Animations/animation";
+import type { Animatable } from "./Animations/animatable";
 
 /**
  * Defines how a node can be built from a string name.
@@ -812,6 +811,33 @@ export class Node implements IBehaviorAware<Node> {
      */
     public getAnimationRange(name: string): Nullable<AnimationRange> {
         return this._ranges[name] || null;
+    }
+
+    /**
+     * Clone the current node
+     * @param name Name of the new clone
+     * @param newParent New parent for the clone
+     * @param doNotCloneChildren Do not clone children hierarchy
+     * @returns the new transform node
+     */
+    public clone(name: string, newParent: Nullable<Node>, doNotCloneChildren?: boolean): Nullable<Node> {
+        const result = SerializationHelper.Clone(() => new Node(name, this.getScene()), this);
+
+        if (newParent) {
+            result.parent = newParent;
+        }
+
+        if (!doNotCloneChildren) {
+            // Children
+            const directDescendants = this.getDescendants(true);
+            for (let index = 0; index < directDescendants.length; index++) {
+                const child = directDescendants[index];
+
+                child.clone(name + "." + child.name, result);
+            }
+        }
+
+        return result;
     }
 
     /**

@@ -588,6 +588,16 @@ export class Control implements IAnimatable {
         this._markAsDirty();
     }
 
+    private _fixedRatio = 0;
+    public set fixedRatio(value: number) {
+        if (this._fixedRatio === value) {
+            return;
+        }
+
+        this._fixedRatio = value;
+        this._markAsDirty();
+    }
+
     /**
      * Gets or sets a fixed ratio for this control.
      * When different from 0, the ratio is used to compute the "second" dimension.
@@ -595,9 +605,27 @@ export class Control implements IAnimatable {
      * second dimension is computed as first dimension * fixedRatio
      */
     @serialize()
-    public fixedRatio = 0;
+    public get fixedRatio(): number {
+        return this._fixedRatio;
+    }
 
-    protected _fixedRatioMasterIsWidth = true;
+    private _fixedRatioMasterIsWidth = true;
+    set fixedRatioMasterIsWidth(value: boolean) {
+        if (this._fixedRatioMasterIsWidth === value) {
+            return;
+        }
+        this._fixedRatioMasterIsWidth = value;
+        this._markAsDirty();
+    }
+
+    /**
+     * Gets or sets a boolean indicating that the fixed ratio is set on the width instead of the height. True by default.
+     * When the height of a control is set, this property is changed to false.
+     */
+    @serialize()
+    get fixedRatioMasterIsWidth(): boolean {
+        return this._fixedRatioMasterIsWidth;
+    }
 
     /**
      * Gets or sets control width
@@ -1577,12 +1605,12 @@ export class Control implements IAnimatable {
     }
 
     /** @internal */
-    protected _computeAdditionnalOffsetX() {
+    protected _computeAdditionalOffsetX() {
         return 0;
     }
 
     /** @internal */
-    protected _computeAdditionnalOffsetY() {
+    protected _computeAdditionalOffsetY() {
         return 0;
     }
 
@@ -1607,8 +1635,8 @@ export class Control implements IAnimatable {
             const topShadowOffset = Math.min(Math.min(shadowOffsetY, 0) - shadowBlur * 2, 0);
             const bottomShadowOffset = Math.max(Math.max(shadowOffsetY, 0) + shadowBlur * 2, 0);
 
-            const offsetX = this._computeAdditionnalOffsetX();
-            const offsetY = this._computeAdditionnalOffsetY();
+            const offsetX = this._computeAdditionalOffsetX();
+            const offsetY = this._computeAdditionalOffsetY();
 
             this.host.invalidateRect(
                 Math.floor(this._tmpMeasureA.left + leftShadowOffset - offsetX),
@@ -1882,11 +1910,11 @@ export class Control implements IAnimatable {
             this._currentMeasure.height *= this._height.getValue(this._host);
         }
 
-        if (this.fixedRatio !== 0) {
+        if (this._fixedRatio !== 0) {
             if (this._fixedRatioMasterIsWidth) {
-                this._currentMeasure.height = this._currentMeasure.width * this.fixedRatio;
+                this._currentMeasure.height = this._currentMeasure.width * this._fixedRatio;
             } else {
-                this._currentMeasure.width = this._currentMeasure.height * this.fixedRatio;
+                this._currentMeasure.width = this._currentMeasure.height * this._fixedRatio;
             }
         }
     }
@@ -2406,6 +2434,8 @@ export class Control implements IAnimatable {
         serializationObject.name = this.name;
         serializationObject.className = this.getClassName();
 
+        // Call prepareFont to guarantee the font is properly set before serializing
+        this._prepareFont();
         if (this._font) {
             serializationObject.fontFamily = this._fontFamily;
             serializationObject.fontSize = this.fontSize;
@@ -2472,6 +2502,8 @@ export class Control implements IAnimatable {
                     );
             }
         }
+
+        this.fixedRatioMasterIsWidth = serializedObject.fixedRatioMasterIsWidth ?? this.fixedRatioMasterIsWidth;
     }
 
     /** Releases associated resources */

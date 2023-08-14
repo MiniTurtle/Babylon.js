@@ -3,7 +3,7 @@ import { Scalar } from "../../Maths/math.scalar";
 import type { Nullable } from "../../types";
 import * as WebGPUConstants from "./webgpuConstants";
 
-declare type WebGPUBundleList = import("./webgpuBundleList").WebGPUBundleList;
+import type { WebGPUBundleList } from "./webgpuBundleList";
 
 /** @internal */
 export class WebGPUHardwareTexture implements HardwareTextureWrapper {
@@ -67,7 +67,7 @@ export class WebGPUHardwareTexture implements HardwareTextureWrapper {
     public releaseMSAATexture() {
         if (this._webgpuMSAATexture) {
             for (const texture of this._webgpuMSAATexture) {
-                texture.destroy();
+                texture?.destroy();
             }
             this._webgpuMSAATexture = null;
         }

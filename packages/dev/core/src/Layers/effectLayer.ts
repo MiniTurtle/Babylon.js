@@ -65,6 +65,11 @@ export interface IEffectLayerOptions {
      * The type of the main texture. Default: TEXTURETYPE_UNSIGNED_INT
      */
     mainTextureType: number;
+
+    /**
+     * Whether or not to generate a stencil buffer. Default: false
+     */
+    generateStencilBuffer: boolean;
 }
 
 /**
@@ -90,6 +95,7 @@ export abstract class EffectLayer {
     protected _postProcesses: PostProcess[] = [];
     protected _textures: BaseTexture[] = [];
     protected _emissiveTextureAndColor: { texture: Nullable<BaseTexture>; color: Color4 } = { texture: null, color: new Color4() };
+    protected _effectIntensity: { [meshUniqueId: number]: number } = {};
 
     /**
      * The name of the layer
@@ -211,6 +217,24 @@ export abstract class EffectLayer {
     }
 
     /**
+     * Gets the intensity of the effect for a specific mesh.
+     * @param mesh The mesh to get the effect intensity for
+     * @returns The intensity of the effect for the mesh
+     */
+    public getEffectIntensity(mesh: AbstractMesh) {
+        return this._effectIntensity[mesh.uniqueId] ?? 1;
+    }
+
+    /**
+     * Sets the intensity of the effect for a specific mesh.
+     * @param mesh The mesh to set the effect intensity for
+     * @param intensity The intensity of the effect for the mesh
+     */
+    public setEffectIntensity(mesh: AbstractMesh, intensity: number): void {
+        this._effectIntensity[mesh.uniqueId] = intensity;
+    }
+
+    /**
      * Instantiates a new effect Layer and references it in the scene.
      * @param name The name of the layer
      * @param scene The scene to use the layer in
@@ -313,6 +337,7 @@ export abstract class EffectLayer {
             camera: null,
             renderingGroupId: -1,
             mainTextureType: Constants.TEXTURETYPE_UNSIGNED_INT,
+            generateStencilBuffer: false,
             ...options,
         };
 
@@ -390,7 +415,11 @@ export abstract class EffectLayer {
             this._scene,
             false,
             true,
-            this._effectLayerOptions.mainTextureType
+            this._effectLayerOptions.mainTextureType,
+            false,
+            Texture.TRILINEAR_SAMPLINGMODE,
+            true,
+            this._effectLayerOptions.generateStencilBuffer
         );
         this._mainTexture.activeCamera = this._effectLayerOptions.camera;
         this._mainTexture.wrapU = Texture.CLAMP_ADDRESSMODE;
@@ -673,6 +702,7 @@ export abstract class EffectLayer {
                 "opacityIntensity",
                 "morphTargetTextureInfo",
                 "morphTargetTextureIndices",
+                "glowIntensity",
             ];
 
             addClipPlaneUniforms(uniforms);
@@ -964,6 +994,9 @@ export abstract class EffectLayer {
                 if (enableAlphaMode) {
                     engine.setAlphaMode(material.alphaMode);
                 }
+
+                // Intensity of effect
+                effect.setFloat("glowIntensity", this.getEffectIntensity(renderingMesh));
 
                 // Clip planes
                 bindClipPlane(effect, material, scene);

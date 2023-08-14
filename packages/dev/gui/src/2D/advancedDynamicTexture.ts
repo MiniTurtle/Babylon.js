@@ -31,7 +31,7 @@ import { RandomGUID } from "core/Misc/guid";
 import { GetClass } from "core/Misc/typeStore";
 import { DecodeBase64ToBinary } from "core/Misc/stringTools";
 
-declare type StandardMaterial = import("core/Materials/standardMaterial").StandardMaterial;
+import type { StandardMaterial } from "core/Materials/standardMaterial";
 
 /**
  * Class used to create texture to support 2D GUI elements
@@ -1281,9 +1281,9 @@ export class AdvancedDynamicTexture extends DynamicTexture {
         if (!scene) {
             return this;
         }
-
+        const size = this.getSize();
         const data = this.serializeContent();
-        const clone = AdvancedDynamicTexture.CreateFullscreenUI(newName || "Clone of " + this.name, this.isForeground, scene, this.samplingMode);
+        const clone = new AdvancedDynamicTexture(newName ?? "Clone of " + this.name, size.width, size.height, scene, !this.noMipmap, this.samplingMode);
         clone.parseSerializedObject(data);
 
         return clone;

@@ -3,13 +3,15 @@ import type { PhysicsShape } from "./physicsShape";
 import { Vector3, Quaternion, TmpVectors } from "../../Maths/math.vector";
 import type { Scene } from "../../scene";
 import type { PhysicsEngine } from "./physicsEngine";
-import type { Mesh, TransformNode, AbstractMesh } from "../../Meshes";
 import type { Nullable } from "core/types";
 import type { PhysicsConstraint } from "./physicsConstraint";
 import type { Bone } from "core/Bones/bone";
 import { Space } from "core/Maths/math.axis";
 import type { Observable, Observer } from "../../Misc/observable";
 import type { Node } from "../../node";
+import type { Mesh } from "core/Meshes/mesh";
+import type { AbstractMesh } from "../../Meshes/abstractMesh";
+import type { TransformNode } from "../../Meshes/transformNode";
 
 /**
  * PhysicsBody is useful for creating a physics body that can be used in a physics engine. It allows
@@ -56,8 +58,12 @@ export class PhysicsBody {
 
     /**
      * Constructs a new physics body for the given node.
-     * @param transformNode - The Transform Node to construct the physics body for.
-     * @param motionType - The motion type of the physics body.
+     * @param transformNode - The Transform Node to construct the physics body for. For better performance, it is advised that this node does not have a parent.
+     * @param motionType - The motion type of the physics body. The options are:
+     *  - PhysicsMotionType.STATIC - Static bodies are not moving and unaffected by forces or collisions. They are good for level boundaries or terrain.
+     *  - PhysicsMotionType.DYNAMIC - Dynamic bodies are fully simulated. They can move and collide with other objects.
+     *  - PhysicsMotionType.ANIMATED - They behave like dynamic bodies, but they won't be affected by other bodies, but still push other bodies out of the way.
+     * @param startsAsleep - Whether the physics body should start in a sleeping state (not a guarantee). Defaults to false.
      * @param scene - The scene containing the physics engine.
      *
      * This code is useful for creating a physics body for a given Transform Node in a scene.
@@ -94,7 +100,11 @@ export class PhysicsBody {
             this._physicsPlugin.initBodyInstances(this, motionType, m);
         } else {
             // single instance
-            this._physicsPlugin.initBody(this, motionType, transformNode.position, transformNode.rotationQuaternion);
+            if (transformNode.parent) {
+                // Force computation of world matrix so that the parent transforms are correctly reflected in absolutePosition/absoluteRotationQuaternion.
+                transformNode.computeWorldMatrix(true);
+            }
+            this._physicsPlugin.initBody(this, motionType, transformNode.absolutePosition, transformNode.absoluteRotationQuaternion);
         }
         this.transformNode = transformNode;
         transformNode.physicsBody = this;
@@ -121,6 +131,9 @@ export class PhysicsBody {
     public clone(transformNode: TransformNode): PhysicsBody {
         const clonedBody = new PhysicsBody(transformNode, this.getMotionType(), this.startAsleep, this.transformNode.getScene());
         clonedBody.shape = this.shape;
+        clonedBody.setMassProperties(this.getMassProperties());
+        clonedBody.setLinearDamping(this.getLinearDamping());
+        clonedBody.setAngularDamping(this.getAngularDamping());
         return clonedBody;
     }
 
@@ -500,6 +513,34 @@ export class PhysicsBody {
     }
 
     /**
+     * Sets the gravity factor of the physics body
+     * @param factor the gravity factor to set
+     * @param instanceIndex the instance of the body to set, if undefined all instances will be set
+     */
+    public setGravityFactor(factor: number, instanceIndex?: number) {
+        this._physicsPlugin.setGravityFactor(this, factor, instanceIndex);
+    }
+
+    /**
+     * Gets the gravity factor of the physics body
+     * @param instanceIndex the instance of the body to get, if undefined the value of first instance will be returned
+     * @returns the gravity factor
+     */
+    public getGravityFactor(instanceIndex?: number): number {
+        return this._physicsPlugin.getGravityFactor(this, instanceIndex);
+    }
+
+    /**
+     * Set the target transformation (position and rotation) of the body, such that the body will set its velocity to reach that target
+     * @param position The target position
+     * @param rotation The target rotation
+     * @param instanceIndex The index of the instance in an instanced body
+     */
+    public setTargetTransform(position: Vector3, rotation: Quaternion, instanceIndex?: number) {
+        this._physicsPlugin.setTargetTransform(this, position, rotation, instanceIndex);
+    }
+
+    /**
      * Disposes the body from the physics engine.
      *
      * This method is useful for cleaning up the physics engine when a body is no longer needed. Disposing the body will free up resources and prevent memory leaks.
@@ -516,6 +557,7 @@ export class PhysicsBody {
         this._physicsEngine.removeBody(this);
         this._physicsPlugin.removeBody(this);
         this._physicsPlugin.disposeBody(this);
+        this.transformNode.physicsBody = null;
         this._pluginData = null;
         this._pluginDataInstances.length = 0;
     }

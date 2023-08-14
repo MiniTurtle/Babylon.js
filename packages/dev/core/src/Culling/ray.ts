@@ -11,7 +11,7 @@ import { Camera } from "../Cameras/camera";
 import type { Plane } from "../Maths/math.plane";
 import { EngineStore } from "../Engines/engineStore";
 
-declare type Mesh = import("../Meshes/mesh").Mesh;
+import type { Mesh } from "../Meshes/mesh";
 
 /**
  * Class representing a ray with position and direction
@@ -293,12 +293,24 @@ export class Ray {
     }
 
     /**
-     * Checks if ray intersects a mesh
+     * Checks if ray intersects a mesh. The ray is defined in WORLD space. A mesh triangle can be picked both from its front and back sides,
+     * irrespective of orientation.
      * @param mesh the mesh to check
      * @param fastCheck defines if the first intersection will be used (and not the closest)
+     * @param trianglePredicate defines an optional predicate used to select faces when a mesh intersection is detected
+     * @param onlyBoundingInfo defines a boolean indicating if picking should only happen using bounding info (false by default)
+     * @param worldToUse defines the world matrix to use to get the world coordinate of the intersection point
+     * @param skipBoundingInfo a boolean indicating if we should skip the bounding info check
      * @returns picking info of the intersection
      */
-    public intersectsMesh(mesh: DeepImmutable<AbstractMesh>, fastCheck?: boolean): PickingInfo {
+    public intersectsMesh(
+        mesh: DeepImmutable<AbstractMesh>,
+        fastCheck?: boolean,
+        trianglePredicate?: TrianglePickingPredicate,
+        onlyBoundingInfo = false,
+        worldToUse?: Matrix,
+        skipBoundingInfo = false
+    ): PickingInfo {
         const tm = TmpVectors.Matrix[0];
 
         mesh.getWorldMatrix().invertToRef(tm);
@@ -309,7 +321,7 @@ export class Ray {
             this._tmpRay = Ray.Transform(this, tm);
         }
 
-        return mesh.intersects(this._tmpRay, fastCheck);
+        return mesh.intersects(this._tmpRay, fastCheck, trianglePredicate, onlyBoundingInfo, worldToUse, skipBoundingInfo);
     }
 
     /**
@@ -608,10 +620,11 @@ export class Ray {
         matrix.multiplyToRef(projection, matrix);
         matrix.invert();
 
+        const engine = EngineStore.LastCreatedEngine;
         const nearScreenSource = TmpVectors.Vector3[0];
         nearScreenSource.x = (sourceX / viewportWidth) * 2 - 1;
         nearScreenSource.y = -((sourceY / viewportHeight) * 2 - 1);
-        nearScreenSource.z = EngineStore.LastCreatedEngine?.isNDCHalfZRange ? 0 : -1;
+        nearScreenSource.z = engine?.useReverseDepthBuffer ? 1 : engine?.isNDCHalfZRange ? 0 : -1;
 
         // far Z need to be close but < to 1 or camera projection matrix with maxZ = 0 will NaN
         const farScreenSource = TmpVectors.Vector3[1].copyFromFloats(nearScreenSource.x, nearScreenSource.y, 1.0 - 1e-8);

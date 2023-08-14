@@ -13,9 +13,11 @@ import { Container } from "gui/2D/controls/container";
 import type { Control } from "gui/2D/controls/control";
 import type { Node } from "core/node";
 import type { BaseTexture } from "core/Materials/Textures/baseTexture";
+import type { IHTMLTwinRendererOptions } from "./htmlTwinRenderer";
 
 interface IHTMLTwinHostComponentProps {
     scene: Scene;
+    options?: IHTMLTwinRendererOptions;
 }
 interface IHTMLTwinHostComponentState {
     a11yTreeItems: HTMLTwinItem[];
@@ -23,9 +25,13 @@ interface IHTMLTwinHostComponentState {
 
 export class HTMLTwinHostComponent extends React.Component<IHTMLTwinHostComponentProps, IHTMLTwinHostComponentState> {
     private _observersMap = new Map<Observable<any>, Nullable<Observer<any>>>();
+    private _options: IHTMLTwinRendererOptions;
 
     constructor(props: IHTMLTwinHostComponentProps) {
         super(props);
+        this._options = props.options ?? {
+            addAllControls: true,
+        };
         this.state = { a11yTreeItems: [] };
     }
 
@@ -46,7 +52,12 @@ export class HTMLTwinHostComponent extends React.Component<IHTMLTwinHostComponen
 
         // Find all a11y entities in the scene, assemble the a11y forest (a11yTreeItems), and update React state to let React update DOM.
         const updateA11yTree = () => {
-            this._updateHTMLTwinItems();
+            // Delay the call to _updateHTMLTwinItems because during its execution, _isMeshGUI will be called and may access node.sourceMesh
+            // if node is an instanced mesh, but at this stage, the InstancedMesh constructor has not yet been executed and sourceMesh is undefined.
+            // The delay will give time for the InstancedMesh constructor to be executed.
+            setTimeout(() => {
+                this._updateHTMLTwinItems();
+            });
         };
 
         const addGUIObservers = (control: Control) => {
@@ -103,12 +114,17 @@ export class HTMLTwinHostComponent extends React.Component<IHTMLTwinHostComponen
             }
 
             // If the node has GUI, add observer to the controls
-            if (this._isMeshGUI(node)) {
-                const curMesh = node as AbstractMesh;
-                const adt = curMesh.material?.getActiveTextures()[0] as AdvancedDynamicTexture;
-                const guiRoot = adt.getChildren();
-                guiRoot.forEach((control) => addGUIObservers(control));
-            }
+            // Delays the call to _isMeshGUI because it can access node.sourceMesh if node is an instanced mesh, but at this stage
+            // the InstancedMesh constructor has not yet been executed and sourceMesh is undefined.
+            // The delay will give time for the InstancedMesh constructor to be executed.
+            setTimeout(() => {
+                if (this._isMeshGUI(node)) {
+                    const curMesh = node as AbstractMesh;
+                    const adt = curMesh.material?.getActiveTextures()[0] as AdvancedDynamicTexture;
+                    const guiRoot = adt.getChildren();
+                    guiRoot.forEach((control) => addGUIObservers(control));
+                }
+            });
         };
 
         const _updateAndAddNode = (node: Node) => {
@@ -267,7 +283,7 @@ export class HTMLTwinHostComponent extends React.Component<IHTMLTwinHostComponen
         const queue: Control[] = [...rootItems];
         for (let i: number = 0; i < queue.length; i++) {
             const curNode = queue[i];
-            if (!curNode.isVisible) {
+            if (!curNode.isVisible || (!this._options.addAllControls && curNode.name !== "root" && !curNode.accessibilityTag?.description)) {
                 continue;
             }
             if (curNode instanceof Container && curNode.children.length !== 0 && !(curNode instanceof Button)) {

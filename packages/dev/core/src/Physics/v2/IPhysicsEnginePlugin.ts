@@ -1,5 +1,5 @@
 import type { Vector3, Quaternion } from "../../Maths/math.vector";
-import type { PhysicsRaycastResult } from "../physicsRaycastResult";
+import type { IRaycastQuery, PhysicsRaycastResult } from "../physicsRaycastResult";
 import type { PhysicsBody } from "./physicsBody";
 import type { PhysicsShape } from "./physicsShape";
 import type { PhysicsConstraint } from "./physicsConstraint";
@@ -126,10 +126,18 @@ export enum PhysicsConstraintMotorType {
     POSITION,
 }
 
+export enum PhysicsEventType {
+    COLLISION_STARTED = "COLLISION_STARTED",
+    COLLISION_CONTINUED = "COLLISION_CONTINUED",
+    COLLISION_FINISHED = "COLLISION_FINISHED",
+    TRIGGER_ENTERED = "TRIGGER_ENTERED",
+    TRIGGER_EXITED = "TRIGGER_EXITED",
+}
+
 /**
- * Collision object that is the parameter when notification for collision fires.
+ * Base collision object
  */
-export interface IPhysicsCollisionEvent {
+export interface IBasePhysicsCollisionEvent {
     /**
      * 1st physics body that collided
      */
@@ -146,6 +154,16 @@ export interface IPhysicsCollisionEvent {
      * index in instances array for the collidedAgainst
      */
     collidedAgainstIndex: number;
+    /**
+     * Event type
+     */
+    type: PhysicsEventType;
+}
+
+/**
+ * Collision object that is the parameter when notification for collision fires.
+ */
+export interface IPhysicsCollisionEvent extends IBasePhysicsCollisionEvent {
     /**
      * World position where the collision occured
      */
@@ -362,6 +380,9 @@ export interface IPhysicsEnginePluginV2 {
     setCollisionCallbackEnabled(body: PhysicsBody, enabled: boolean, instanceIndex?: number): void;
     addConstraint(body: PhysicsBody, childBody: PhysicsBody, constraint: PhysicsConstraint, instanceIndex?: number, childInstanceIndex?: number): void;
     getCollisionObservable(body: PhysicsBody, instanceIndex?: number): Observable<IPhysicsCollisionEvent>;
+    setGravityFactor(body: PhysicsBody, factor: number, instanceIndex?: number): void;
+    getGravityFactor(body: PhysicsBody, instanceIndex?: number): number;
+    setTargetTransform(body: PhysicsBody, position: Vector3, rotation: Quaternion, instanceIndex?: number): void;
 
     // shape
     initShape(shape: PhysicsShape, type: PhysicsShapeType, options: PhysicsShapeParameters): void;
@@ -377,6 +398,7 @@ export interface IPhysicsEnginePluginV2 {
     getNumChildren(shape: PhysicsShape): number;
     getBoundingBox(shape: PhysicsShape): BoundingBox;
     disposeShape(shape: PhysicsShape): void;
+    setTrigger(shape: PhysicsShape, isTrigger: boolean): void;
 
     // constraint
     initConstraint(constraint: PhysicsConstraint, body: PhysicsBody, childBody: PhysicsBody): void;
@@ -401,7 +423,7 @@ export interface IPhysicsEnginePluginV2 {
     disposeConstraint(constraint: PhysicsConstraint): void;
 
     // raycast
-    raycast(from: Vector3, to: Vector3, result: PhysicsRaycastResult): void;
+    raycast(from: Vector3, to: Vector3, result: PhysicsRaycastResult, query?: IRaycastQuery): void;
 
     dispose(): void;
 }

@@ -32,8 +32,8 @@ export function CreateGroundVertexData(options: { width?: number; height?: numbe
 
     const width: number = options.width || 1;
     const height: number = options.height || 1;
-    const subdivisionsX: number = options.subdivisionsX || options.subdivisions || 1;
-    const subdivisionsY: number = options.subdivisionsY || options.subdivisions || 1;
+    const subdivisionsX: number = (options.subdivisionsX || options.subdivisions || 1) | 0;
+    const subdivisionsY: number = (options.subdivisionsY || options.subdivisions || 1) | 0;
 
     for (row = 0; row <= subdivisionsY; row++) {
         for (col = 0; col <= subdivisionsX; col++) {
@@ -512,7 +512,7 @@ VertexData.CreateGround = CreateGroundVertexData;
 VertexData.CreateTiledGround = CreateTiledGroundVertexData;
 VertexData.CreateGroundFromHeightMap = CreateGroundFromHeightMapVertexData;
 
-(Mesh as any).CreateGround = (name: string, width: number, height: number, subdivisions: number, scene?: Scene, updatable?: boolean): Mesh => {
+Mesh.CreateGround = (name: string, width: number, height: number, subdivisions: number, scene?: Scene, updatable?: boolean): Mesh => {
     const options = {
         width,
         height,
@@ -523,7 +523,7 @@ VertexData.CreateGroundFromHeightMap = CreateGroundFromHeightMapVertexData;
     return CreateGround(name, options, scene);
 };
 
-(Mesh as any).CreateTiledGround = (
+Mesh.CreateTiledGround = (
     name: string,
     xmin: number,
     zmin: number,
@@ -547,7 +547,7 @@ VertexData.CreateGroundFromHeightMap = CreateGroundFromHeightMapVertexData;
     return CreateTiledGround(name, options, scene);
 };
 
-(Mesh as any).CreateGroundFromHeightMap = (
+Mesh.CreateGroundFromHeightMap = (
     name: string,
     url: string,
     width: number,

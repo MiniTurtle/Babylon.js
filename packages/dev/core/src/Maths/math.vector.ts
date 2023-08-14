@@ -893,6 +893,7 @@ export class Vector3 {
     private static _RightReadOnly = Vector3.Right() as DeepImmutable<Vector3>;
     private static _LeftReadOnly = Vector3.Left() as DeepImmutable<Vector3>;
     private static _ZeroReadOnly = Vector3.Zero() as DeepImmutable<Vector3>;
+    private static _OneReadOnly = Vector3.One() as DeepImmutable<Vector3>;
 
     /** @internal */
     public _x: number;
@@ -1243,14 +1244,25 @@ export class Vector3 {
      * @returns the result
      */
     public applyRotationQuaternionToRef<T extends Vector3>(q: Quaternion, result: T): T {
-        const ix = q._w * this._x + q._y * this._z - q._z * this._y;
-        const iy = q._w * this._y + q._z * this._x - q._x * this._z;
-        const iz = q._w * this._z + q._x * this._y - q._y * this._x;
-        const iw = -q._x * this._x - q._y * this._y - q._z * this._z;
+        // Derived from https://raw.org/proof/vector-rotation-using-quaternions/
 
-        result._x = ix * q._w + iw * -q._x + iy * -q._z - iz * -q._y;
-        result._y = iy * q._w + iw * -q._y + iz * -q._x - ix * -q._z;
-        result._z = iz * q._w + iw * -q._z + ix * -q._y - iy * -q._x;
+        const vx = this._x,
+            vy = this._y,
+            vz = this._z;
+        const qx = q._x,
+            qy = q._y,
+            qz = q._z,
+            qw = q._w;
+
+        // t = 2q x v
+        const tx = 2 * (qy * vz - qz * vy);
+        const ty = 2 * (qz * vx - qx * vz);
+        const tz = 2 * (qx * vy - qy * vx);
+
+        // v + w t + q x t
+        result._x = vx + qw * tx + qy * tz - qz * ty;
+        result._y = vy + qw * ty + qz * tx - qx * tz;
+        result._z = vz + qw * tz + qx * ty - qy * tx;
 
         result._isDirty = true;
         return result;
@@ -2082,6 +2094,13 @@ export class Vector3 {
      */
     public static get ZeroReadOnly(): DeepImmutable<Vector3> {
         return Vector3._ZeroReadOnly;
+    }
+
+    /**
+     * Gets a one Vector3 that must not be updated
+     */
+    public static get OneReadOnly(): DeepImmutable<Vector3> {
+        return Vector3._OneReadOnly;
     }
 
     /**
@@ -3479,6 +3498,7 @@ export class Vector4 {
     public toVector3(): Vector3 {
         return new Vector3(this.x, this.y, this.z);
     }
+
     /**
      * Returns a new Vector4 copied from the current one.
      * @returns the new cloned vector
@@ -4654,12 +4674,13 @@ export class Quaternion {
      * @param vecFrom defines the direction vector from which to rotate
      * @param vecTo defines the direction vector to which to rotate
      * @param result the quaternion to store the result
+     * @param epsilon defines the minimal dot value to define vecs as opposite. Default: `BABYLON.Epsilon`
      * @returns the updated quaternion
      */
-    public static FromUnitVectorsToRef<T extends Quaternion>(vecFrom: DeepImmutable<Vector3>, vecTo: DeepImmutable<Vector3>, result: T): T {
+    public static FromUnitVectorsToRef<T extends Quaternion>(vecFrom: DeepImmutable<Vector3>, vecTo: DeepImmutable<Vector3>, result: T, epsilon = Epsilon): T {
         const r = Vector3.Dot(vecFrom, vecTo) + 1;
 
-        if (r < Epsilon) {
+        if (r < epsilon) {
             if (Math.abs(vecFrom.x) > Math.abs(vecFrom.z)) {
                 result.set(-vecFrom.y, vecFrom.x, 0, 0);
             } else {

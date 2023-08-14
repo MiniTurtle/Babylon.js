@@ -926,10 +926,17 @@ declare abstract class XRSubImage implements XRSubImage {}
 
 interface XRWebGLSubImage extends XRSubImage {
     readonly colorTexture: WebGLTexture;
-    readonly depthStencilTexture: WebGLTexture;
+    readonly depthStencilTexture?: WebGLTexture;
+    readonly motionVectorTexture?: WebGLTexture;
     readonly imageIndex: number;
     readonly textureWidth: number;
     readonly textureHeight: number;
+    readonly colorTextureWidth?: number;
+    readonly colorTextureHeight?: number;
+    readonly depthStencilTextureWidth?: number;
+    readonly depthStencilTextureHeight?: number;
+    readonly motionVectorTextureWidth?: number;
+    readonly motionVectorTextureHeight?: number;
 }
 
 declare abstract class XRWebGLSubImage implements XRWebGLSubImage {}
@@ -971,16 +978,6 @@ declare enum XOVR_multiview2 {
     MAX_VIEWS_OVR = 0x9631,
     FRAMEBUFFER_INCOMPLETE_VIEW_TARGETS_OVR = 0x9633,
 }
-
-interface OVR_multiview2 {
-    framebufferTextureMultiviewOVR(target: GLenum, attachment: GLenum, texture: WebGLTexture | null, level: GLint, baseViewIndex: GLint, numViews: GLsizei): void;
-    readonly FRAMEBUFFER_ATTACHMENT_TEXTURE_NUM_VIEWS_OVR: 0x9630;
-    readonly FRAMEBUFFER_ATTACHMENT_TEXTURE_BASE_VIEW_INDEX_OVR: 0x9632;
-    readonly MAX_VIEWS_OVR: 0x9631;
-    readonly FRAMEBUFFER_INCOMPLETE_VIEW_TARGETS_OVR: 0x9633;
-}
-
-declare abstract class OVR_multiview2 implements OVR_multiview2 {}
 
 // Oculus extensions
 interface XRSessionGrant {
@@ -1191,6 +1188,11 @@ interface XRWebGLDepthInformation extends XRDepthInformation {
 
 interface XRWebGLBinding {
     getDepthInformation(view: XRView): XRWebGLDepthInformation | undefined;
+}
+
+// enabledFeatures
+interface XRSession {
+    enabledFeatures: string[];
 }
 
 /**

@@ -369,7 +369,7 @@ export class NodeMaterialConnectionPoint {
             }
 
             if (endpoint.ownerBlock.target === NodeMaterialBlockTargets.Neutral || endpoint.ownerBlock.target === NodeMaterialBlockTargets.VertexAndFragment) {
-                if (endpoint.ownerBlock.outputs.some((o) => o.isConnectedInFragmentShader)) {
+                if (endpoint.ownerBlock.isConnectedInFragmentShader()) {
                     return true;
                 }
             }

@@ -10,6 +10,8 @@ import { TexturePropertyTabComponent } from "./properties/texturePropertyTabComp
 import { TransformPropertyTabComponent } from "./properties/transformNodePropertyComponent";
 import { TrigonometryPropertyTabComponent } from "./properties/trigonometryNodePropertyComponent";
 import { VectorMergerPropertyTabComponent } from "./properties/vectorMergerPropertyComponent";
+import { CurvePropertyTabComponent } from "./properties/curveNodePropertyComponent";
+import { TeleportOutPropertyTabComponent } from "./properties/teleportOutNodePropertyComponent";
 
 export const RegisterToPropertyTabManagers = () => {
     PropertyLedger.DefaultControl = GenericPropertyComponent;
@@ -30,4 +32,6 @@ export const RegisterToPropertyTabManagers = () => {
     PropertyLedger.RegisteredControls["ImageSourceBlock"] = ImageSourcePropertyTabComponent;
     PropertyLedger.RegisteredControls["VectorMergerBlock"] = VectorMergerPropertyTabComponent;
     PropertyLedger.RegisteredControls["ColorMergerBlock"] = ColorMergerPropertyTabComponent;
+    PropertyLedger.RegisteredControls["CurveBlock"] = CurvePropertyTabComponent;
+    PropertyLedger.RegisteredControls["NodeMaterialTeleportOutBlock"] = TeleportOutPropertyTabComponent;
 };

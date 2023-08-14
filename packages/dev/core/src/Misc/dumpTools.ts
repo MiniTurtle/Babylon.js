@@ -9,9 +9,10 @@ import { Tools } from "./tools";
 import type { Nullable } from "../types";
 
 import { passPixelShader } from "../Shaders/pass.fragment";
+import { Scalar } from "../Maths/math.scalar";
 
 type DumpToolsEngine = {
-    canvas: HTMLCanvasElement;
+    canvas: HTMLCanvasElement | OffscreenCanvas;
     engine: ThinEngine;
     renderer: EffectRenderer;
     wrapper: EffectWrapper;
@@ -25,8 +26,9 @@ export class DumpTools {
 
     private static _CreateDumpRenderer(): DumpToolsEngine {
         if (!DumpTools._DumpToolsEngine) {
-            const canvas = document.createElement("canvas");
-            const engine = new ThinEngine(canvas, false, {
+            let canvas: HTMLCanvasElement | OffscreenCanvas = new OffscreenCanvas(100, 100); // will be resized later
+            let engine: Nullable<ThinEngine> = null;
+            const options = {
                 preserveDrawingBuffer: true,
                 depth: false,
                 stencil: false,
@@ -34,7 +36,14 @@ export class DumpTools {
                 premultipliedAlpha: false,
                 antialias: false,
                 failIfMajorPerformanceCaveat: false,
-            });
+            };
+            try {
+                engine = new ThinEngine(canvas, false, options);
+            } catch (e) {
+                // The browser does not support WebGL context in OffscreenCanvas, fallback on a regular canvas
+                canvas = document.createElement("canvas");
+                engine = new ThinEngine(canvas, false, options);
+            }
             engine.getCaps().parallelShaderCompile = undefined;
             const renderer = new EffectRenderer(engine);
             const wrapper = new EffectWrapper({
@@ -61,6 +70,7 @@ export class DumpTools {
      * @param successCallback defines the callback triggered once the data are available
      * @param mimeType defines the mime type of the result
      * @param fileName defines the filename to download. If present, the result will automatically be downloaded
+     * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
      * @returns a void promise
      */
     public static async DumpFramebuffer(
@@ -68,15 +78,16 @@ export class DumpTools {
         height: number,
         engine: Engine,
         successCallback?: (data: string) => void,
-        mimeType: string = "image/png",
-        fileName?: string
+        mimeType = "image/png",
+        fileName?: string,
+        quality?: number
     ) {
         // Read the contents of the framebuffer
         const bufferView = await engine.readPixels(0, 0, width, height);
 
         const data = new Uint8Array(bufferView.buffer);
 
-        DumpTools.DumpData(width, height, data, successCallback as (data: string | ArrayBuffer) => void, mimeType, fileName, true);
+        DumpTools.DumpData(width, height, data, successCallback as (data: string | ArrayBuffer) => void, mimeType, fileName, true, undefined, quality);
     }
 
     /**
@@ -88,14 +99,14 @@ export class DumpTools {
      * @param fileName defines the filename to download. If present, the result will automatically be downloaded
      * @param invertY true to invert the picture in the Y dimension
      * @param toArrayBuffer true to convert the data to an ArrayBuffer (encoded as `mimeType`) instead of a base64 string
-     * @param quality defines the quality of the result
+     * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
      * @returns a promise that resolve to the final data
      */
     public static DumpDataAsync(
         width: number,
         height: number,
         data: ArrayBufferView,
-        mimeType: string = "image/png",
+        mimeType = "image/png",
         fileName?: string,
         invertY = false,
         toArrayBuffer = false,
@@ -116,14 +127,14 @@ export class DumpTools {
      * @param fileName defines the filename to download. If present, the result will automatically be downloaded
      * @param invertY true to invert the picture in the Y dimension
      * @param toArrayBuffer true to convert the data to an ArrayBuffer (encoded as `mimeType`) instead of a base64 string
-     * @param quality defines the quality of the result
+     * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
      */
     public static DumpData(
         width: number,
         height: number,
         data: ArrayBufferView,
         successCallback?: (data: string | ArrayBuffer) => void,
-        mimeType: string = "image/png",
+        mimeType = "image/png",
         fileName?: string,
         invertY = false,
         toArrayBuffer = false,
@@ -138,7 +149,7 @@ export class DumpTools {
             let n = data.length;
             while (n--) {
                 const v = data[n];
-                data2[n] = v < 0 ? 0 : v > 1 ? 1 : Math.round(v * 255);
+                data2[n] = Math.round(Scalar.Clamp(v) * 255);
             }
             data = data2;
         }

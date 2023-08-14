@@ -366,7 +366,7 @@ export class GraphCanvasComponent extends React.Component<IGraphCanvasComponentP
         // Reconnect
         this.automaticRewire(inputs, availableNodeInputs, true);
         this.automaticRewire(availableNodeOutputs, outputs, true);
-        this.props.stateManager.onRebuildRequiredObservable.notifyObservers(false);
+        this.props.stateManager.onRebuildRequiredObservable.notifyObservers();
     }
 
     smartAddOverNode(node: GraphNode, source: GraphNode) {
@@ -381,7 +381,7 @@ export class GraphCanvasComponent extends React.Component<IGraphCanvasComponentP
 
         // Reconnect
         this.automaticRewire(inputs, availableNodeInputs, true);
-        this.props.stateManager.onRebuildRequiredObservable.notifyObservers(false);
+        this.props.stateManager.onRebuildRequiredObservable.notifyObservers();
     }
 
     deleteSelection(onRemove: (nodeData: INodeData) => void, autoReconnect = false) {
@@ -437,7 +437,7 @@ export class GraphCanvasComponent extends React.Component<IGraphCanvasComponentP
         this.automaticRewire(inputs, outputs);
 
         this.props.stateManager.onSelectionChangedObservable.notifyObservers(null);
-        this.props.stateManager.onRebuildRequiredObservable.notifyObservers(false);
+        this.props.stateManager.onRebuildRequiredObservable.notifyObservers();
     }
 
     handleKeyDown(
@@ -681,8 +681,6 @@ export class GraphCanvasComponent extends React.Component<IGraphCanvasComponentP
         // Graph
         const node = this.appendNode(nodeData);
 
-        node.addClassToVisual(nodeData.getClassName());
-
         // Links
         if (nodeData.inputs.length && recursion) {
             for (const input of nodeData.inputs) {
@@ -804,6 +802,7 @@ export class GraphCanvasComponent extends React.Component<IGraphCanvasComponentP
         const newNode = new GraphNode(nodeData, this.props.stateManager);
 
         newNode.appendVisual(this._graphCanvas, this);
+        newNode.addClassToVisual(nodeData.getClassName());
 
         this._nodes.push(newNode);
         this._nodeDataContentList.push(nodeData.data);
@@ -1248,6 +1247,20 @@ export class GraphCanvasComponent extends React.Component<IGraphCanvasComponentP
             const emittedNodeData = newDefaultInput.data;
 
             pointA = emittedNodeData.getPortByName(pointName)!;
+            if (!pointA) {
+                for (let i = 0; i < emittedNodeData.outputs.length; i++) {
+                    const output = emittedNodeData.outputs[i];
+                    const outputData = output.data;
+                    const outputBlockType = outputData._blockType;
+                    if (outputBlockType === pointB.data._blockType) {
+                        pointA = output;
+                        break;
+                    }
+                }
+                if (!pointA) {
+                    return;
+                }
+            }
             if (!emittedNodeData.isInput) {
                 nodeA = this.props.onEmitNewNode(emittedNodeData);
             } else {
@@ -1351,7 +1364,7 @@ export class GraphCanvasComponent extends React.Component<IGraphCanvasComponentP
             link.onDisposedObservable.clear();
         });
 
-        this.props.stateManager.onRebuildRequiredObservable.notifyObservers(true);
+        this.props.stateManager.onRebuildRequiredObservable.notifyObservers();
     }
 
     connectNodes(nodeA: GraphNode, pointA: IPortData, nodeB: GraphNode, pointB: IPortData) {
@@ -1364,7 +1377,7 @@ export class GraphCanvasComponent extends React.Component<IGraphCanvasComponentP
         const visitedNodes = new Set<GraphNode>([nodeA]);
         const visitedLinks = new Set<NodeLink>([nodeB.links[nodeB.links.length - 1]]);
 
-        RefreshNode(nodeB, visitedNodes, visitedLinks);
+        RefreshNode(nodeB, visitedNodes, visitedLinks, this);
     }
 
     drop(newNode: GraphNode, targetX: number, targetY: number, offsetX: number, offsetY: number) {
@@ -1379,7 +1392,7 @@ export class GraphCanvasComponent extends React.Component<IGraphCanvasComponentP
         this.props.stateManager.onSelectionChangedObservable.notifyObservers(null);
         this.props.stateManager.onSelectionChangedObservable.notifyObservers({ selection: newNode });
 
-        x -= GraphCanvasComponent.NodeWidth + 150;
+        x -= GraphCanvasComponent.NodeWidth + 200;
 
         newNode.content.inputs.forEach((portData) => {
             if (portData.connectedPort) {

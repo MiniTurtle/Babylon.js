@@ -8,7 +8,7 @@ import type { ProcessingOptions } from "../Engines/Processors/shaderProcessingOp
 import { ShaderStore } from "../Engines/shaderStore";
 import { ShaderLanguage } from "../Materials/shaderLanguage";
 
-declare type Engine = import("../Engines/engine").Engine;
+import type { Engine } from "../Engines/engine";
 
 /**
  * Options to be used when creating a compute effect.
@@ -406,7 +406,7 @@ export class ComputeEffect {
 
         // Let's go through fallbacks then
         Logger.Error("Unable to compile compute effect:");
-        Logger.Error("Defines:\r\n" + this.defines);
+        Logger.Error("Defines:\n" + this.defines);
         if (ComputeEffect.LogShaderCodeOnCompilationError) {
             let lineErrorVertex = null,
                 code = null;

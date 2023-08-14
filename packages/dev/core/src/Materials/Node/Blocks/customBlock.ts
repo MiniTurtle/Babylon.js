@@ -6,6 +6,9 @@ import { RegisterClass } from "../../../Misc/typeStore";
 import type { Scene } from "../../../scene";
 import type { Nullable } from "../../../types";
 import { NodeMaterialConnectionPoint } from "../nodeMaterialBlockConnectionPoint";
+import { NodeMaterialConnectionPointDirection } from "../nodeMaterialBlockConnectionPoint";
+import { ImageSourceBlock } from "./Dual/imageSourceBlock";
+import { NodeMaterialConnectionPointCustomObject } from "../nodeMaterialConnectionPointCustomObject";
 
 /**
  * Custom block created from user-defined json
@@ -13,6 +16,7 @@ import { NodeMaterialConnectionPoint } from "../nodeMaterialBlockConnectionPoint
 export class CustomBlock extends NodeMaterialBlock {
     private _options: any;
     private _code: string;
+    private _inputSamplers: string[];
 
     /**
      * Gets or sets the options for this custom block
@@ -66,7 +70,7 @@ export class CustomBlock extends NodeMaterialBlock {
 
         // Declare the output variables
         this._outputs.forEach((output) => {
-            state.compilationString += this._declareOutput(output, state) + ";\r\n";
+            state.compilationString += this._declareOutput(output, state) + ";\n";
         });
 
         // Generate the function call
@@ -77,7 +81,11 @@ export class CustomBlock extends NodeMaterialBlock {
             if (index > 0) {
                 state.compilationString += ", ";
             }
-            state.compilationString += input.associatedVariableName;
+            if (this._inputSamplers && this._inputSamplers.indexOf(input.name) !== -1) {
+                state.compilationString += (input.connectedPoint?.ownerBlock as ImageSourceBlock)?.samplerName ?? input.associatedVariableName;
+            } else {
+                state.compilationString += input.associatedVariableName;
+            }
             hasInput = true;
         });
 
@@ -88,7 +96,7 @@ export class CustomBlock extends NodeMaterialBlock {
             state.compilationString += output.associatedVariableName;
         });
 
-        state.compilationString += ");\r\n";
+        state.compilationString += ");\n";
 
         return this;
     }
@@ -96,7 +104,7 @@ export class CustomBlock extends NodeMaterialBlock {
     protected _dumpPropertiesCode() {
         let codeString = super._dumpPropertiesCode();
 
-        codeString += `${this._codeVariableName}.options = ${JSON.stringify(this._options)};\r\n`;
+        codeString += `${this._codeVariableName}.options = ${JSON.stringify(this._options)};\n`;
 
         return codeString;
     }
@@ -117,13 +125,26 @@ export class CustomBlock extends NodeMaterialBlock {
 
     private _deserializeOptions(options: any) {
         this._options = options;
-        this._code = options.code.join("\r\n") + "\r\n";
+        this._code = options.code.join("\n") + "\n";
         this.name = this.name || options.name;
         this.target = (<any>NodeMaterialBlockTargets)[options.target];
 
         options.inParameters?.forEach((input: any, index: number) => {
             const type = (<any>NodeMaterialBlockConnectionPointTypes)[input.type];
-            this.registerInput(input.name, type, input.isOptional, undefined, undefined, true);
+
+            if (input.type === "sampler2D" || input.type === "samplerCube") {
+                this._inputSamplers = this._inputSamplers || [];
+                this._inputSamplers.push(input.name);
+                this.registerInput(
+                    input.name,
+                    NodeMaterialBlockConnectionPointTypes.Object,
+                    true,
+                    NodeMaterialBlockTargets.VertexAndFragment,
+                    new NodeMaterialConnectionPointCustomObject(input.name, this, NodeMaterialConnectionPointDirection.Input, ImageSourceBlock, "ImageSourceBlock")
+                );
+            } else {
+                this.registerInput(input.name, type);
+            }
 
             Object.defineProperty(this, input.name, {
                 get: function () {

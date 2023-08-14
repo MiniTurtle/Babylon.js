@@ -19,7 +19,7 @@ const createProject = (type: string) => {
             name: type,
             color: "yellow",
         },
-        testRegex: [`(/test/${type}/.*(test|spec))\\.[tj]sx?$`],
+        testRegex: [`/test/${type}/.*test\\.[tj]sx?$`],
         moduleNameMapper: pathsToModuleNameMapper(compilerOptions.paths, { prefix: "<rootDir>/packages/" }) as any,
         roots: [path.resolve(".")],
         globals: {
@@ -79,6 +79,6 @@ const createProject = (type: string) => {
 // Sync object
 const config: Config.InitialOptions = {
     projects: [createProject("unit"), createProject("visualization"), createProject("integration"), createProject("performance"), createProject("interactions")],
-    reporters: ["default", "jest-screenshot/reporter", "jest-junit"],
+    reporters: ["default", "./scripts/jest-imagediff-reporter", "jest-junit"],
 };
 export default config;

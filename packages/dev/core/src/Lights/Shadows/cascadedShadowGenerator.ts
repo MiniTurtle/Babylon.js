@@ -516,7 +516,7 @@ export class CascadedShadowGenerator extends ShadowGenerator {
         }
 
         const near = camera.minZ,
-            far = camera.maxZ,
+            far = camera.maxZ || this._shadowMaxZ, // account for infinite far plane (ie. maxZ = 0)
             cameraRange = far - near,
             minDistance = this._minDistance,
             maxDistance = this._shadowMaxZ < far && this._shadowMaxZ >= near ? Math.min((this._shadowMaxZ - near) / (far - near), this._maxDistance) : this._maxDistance;
@@ -638,7 +638,21 @@ export class CascadedShadowGenerator extends ShadowGenerator {
 
         camera.getViewMatrix(); // make sure the transformation matrix we get when calling 'getTransformationMatrix()' is calculated with an up to date view matrix
 
+        const cameraInfiniteFarPlane = camera.maxZ === 0;
+        const saveCameraMaxZ = camera.maxZ;
+
+        if (cameraInfiniteFarPlane) {
+            camera.maxZ = this._shadowMaxZ;
+            camera.getProjectionMatrix(true);
+        }
+
         const invViewProj = Matrix.Invert(camera.getTransformationMatrix());
+
+        if (cameraInfiniteFarPlane) {
+            camera.maxZ = saveCameraMaxZ;
+            camera.getProjectionMatrix(true);
+        }
+
         const cornerIndexOffset = this._scene.getEngine().useReverseDepthBuffer ? 4 : 0;
         for (let cornerIndex = 0; cornerIndex < CascadedShadowGenerator._FrustumCornersNDCSpace.length; ++cornerIndex) {
             tmpv1.copyFrom(CascadedShadowGenerator._FrustumCornersNDCSpace[(cornerIndex + cornerIndexOffset) % CascadedShadowGenerator._FrustumCornersNDCSpace.length]);
@@ -745,14 +759,15 @@ export class CascadedShadowGenerator extends ShadowGenerator {
      * @param light The directional light object generating the shadows.
      * @param usefulFloatFirst By default the generator will try to use half float textures but if you need precision (for self shadowing for instance), you can use this option to enforce full float texture.
      * @param camera Camera associated with this shadow generator (default: null). If null, takes the scene active camera at the time we need to access it
+     * @param useRedTextureType Forces the generator to use a Red instead of a RGBA type for the shadow map texture format (default: true)
      */
-    constructor(mapSize: number, light: DirectionalLight, usefulFloatFirst?: boolean, camera?: Nullable<Camera>) {
+    constructor(mapSize: number, light: DirectionalLight, usefulFloatFirst?: boolean, camera?: Nullable<Camera>, useRedTextureType = true) {
         if (!CascadedShadowGenerator.IsSupported) {
             Logger.Error("CascadedShadowMap is not supported by the current engine.");
             return;
         }
 
-        super(mapSize, light, usefulFloatFirst, camera);
+        super(mapSize, light, usefulFloatFirst, camera, useRedTextureType);
 
         this.usePercentageCloserFiltering = true;
     }
@@ -796,9 +811,11 @@ export class CascadedShadowGenerator extends ShadowGenerator {
             undefined,
             false,
             false,
-            undefined /*, Constants.TEXTUREFORMAT_RED*/
+            undefined,
+            this._useRedTextureType ? Constants.TEXTUREFORMAT_RED : Constants.TEXTUREFORMAT_RGBA
         );
         this._shadowMap.createDepthStencilTexture(engine.useReverseDepthBuffer ? Constants.GREATER : Constants.LESS, true);
+        this._shadowMap.noPrePassRenderer = true;
     }
 
     protected _initializeShadowMap(): void {
@@ -906,7 +923,7 @@ export class CascadedShadowGenerator extends ShadowGenerator {
 
         const camera = this._getCamera();
 
-        if (camera && this._shadowMaxZ < camera.maxZ) {
+        if (camera && this._shadowMaxZ <= (camera.maxZ || this._shadowMaxZ)) {
             defines["SHADOWCSMUSESHADOWMAXZ" + lightIndex] = true;
         }
 

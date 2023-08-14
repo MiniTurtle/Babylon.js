@@ -47,10 +47,10 @@ import { MaterialPluginEvent } from "./materialPluginEvent";
 import type { ShaderCustomProcessingFunction } from "../Engines/Processors/shaderProcessingOptions";
 import type { IClipPlanesHolder } from "../Misc/interfaces/iClipPlanesHolder";
 
-declare type PrePassRenderer = import("../Rendering/prePassRenderer").PrePassRenderer;
-declare type Mesh = import("../Meshes/mesh").Mesh;
-declare type Animation = import("../Animations/animation").Animation;
-declare type InstancedMesh = import("../Meshes/instancedMesh").InstancedMesh;
+import type { PrePassRenderer } from "../Rendering/prePassRenderer";
+import type { Mesh } from "../Meshes/mesh";
+import type { Animation } from "../Animations/animation";
+import type { InstancedMesh } from "../Meshes/instancedMesh";
 
 declare let BABYLON: any;
 
@@ -203,12 +203,6 @@ export class Material implements IAnimatable, IClipPlanesHolder {
      */
     public static OnEventObservable = new Observable<Material>();
 
-    static {
-        EngineStore.OnEnginesDisposedObservable.addOnce(() => {
-            Material.OnEventObservable.clear();
-        });
-    }
-
     /**
      * Custom callback helping to override the default shader used in the material.
      */
@@ -321,7 +315,7 @@ export class Material implements IAnimatable, IClipPlanesHolder {
 
         // Only call dirty when there is a state change (no alpha / alpha)
         if (oldValue === 1 || value === 1) {
-            this.markAsDirty(Material.MiscDirtyFlag);
+            this.markAsDirty(Material.MiscDirtyFlag + Material.PrePassDirtyFlag);
         }
     }
 
@@ -1381,6 +1375,23 @@ export class Material implements IAnimatable, IClipPlanesHolder {
         return null;
     }
 
+    protected _clonePlugins(targetMaterial: Material, rootUrl: string) {
+        const serializationObject: any = {};
+
+        // Create plugins in targetMaterial in case they don't exist
+        this._serializePlugins(serializationObject);
+
+        Material._parsePlugins(serializationObject, targetMaterial, this._scene, rootUrl);
+
+        // Copy the properties of the current plugins to the cloned material's plugins
+        if (this.pluginManager) {
+            for (const plugin of this.pluginManager._plugins) {
+                const targetPlugin = targetMaterial.pluginManager!.getPlugin(plugin.name)!;
+                plugin.copyTo(targetPlugin);
+            }
+        }
+    }
+
     /**
      * Gets the meshes bound to the material
      * @returns an array of meshes bound to the material
@@ -1841,7 +1852,20 @@ export class Material implements IAnimatable, IClipPlanesHolder {
 
         serializationObject.stencil = this.stencil.serialize();
         serializationObject.uniqueId = this.uniqueId;
+
+        this._serializePlugins(serializationObject);
+
         return serializationObject;
+    }
+
+    protected _serializePlugins(serializationObject: any) {
+        serializationObject.plugins = {};
+
+        if (this.pluginManager) {
+            for (const plugin of this.pluginManager._plugins) {
+                serializationObject.plugins[plugin.getClassName()] = plugin.serialize();
+            }
+        }
     }
 
     /**
@@ -1865,6 +1889,28 @@ export class Material implements IAnimatable, IClipPlanesHolder {
         const materialType = Tools.Instantiate(parsedMaterial.customType);
         const material = materialType.Parse(parsedMaterial, scene, rootUrl);
         material._loadedUniqueId = parsedMaterial.uniqueId;
+
         return material;
+    }
+
+    protected static _parsePlugins(serializationObject: any, material: Material, scene: Scene, rootUrl: string) {
+        if (!serializationObject.plugins) {
+            return;
+        }
+
+        for (const pluginClassName in serializationObject.plugins) {
+            const pluginData = serializationObject.plugins[pluginClassName];
+
+            let plugin = material.pluginManager?.getPlugin(pluginData.name);
+
+            if (!plugin) {
+                const pluginClassType = Tools.Instantiate("BABYLON." + pluginClassName);
+                if (pluginClassType) {
+                    plugin = new pluginClassType(material);
+                }
+            }
+
+            plugin?.parse(pluginData, scene, rootUrl);
+        }
     }
 }

@@ -101,7 +101,7 @@ function walkCompilerAstAndFindComments(node: ts.Node, indent: string, notFoundC
     // the same comment twice (e.g. for a MethodDeclaration and its PublicKeyword).
     if (isDeclarationKind(node.kind)) {
         let skip = false;
-        node.modifiers?.forEach((modifier) => {
+        ts.getModifiers(node as ts.HasModifiers)?.forEach((modifier) => {
             if (modifier.kind === ts.SyntaxKind.PrivateKeyword || modifier.kind === ts.SyntaxKind.ProtectedKeyword) {
                 skip = true;
             }
@@ -274,7 +274,9 @@ const plugin: IPlugin = {
             },
             create: (context: eslint.Rule.RuleContext) => {
                 const sourceCode: eslint.SourceCode = context.getSourceCode();
-                const checkCommentBlocks: (node: ESTree.MethodDefinition) => void = function (node: ESTree.MethodDefinition) {
+                const checkCommentBlocks: (node: (ESTree.PropertyDefinition | ESTree.MethodDefinition) & eslint.Rule.NodeParentExtension) => void = function (
+                    node: (ESTree.PropertyDefinition | ESTree.MethodDefinition) & eslint.Rule.NodeParentExtension
+                ) {
                     const text = sourceCode.getText(node);
                     // avoid private, protected and hidden public
                     if (text.includes("private ") || text.includes("protected ") || text.includes("public _")) {

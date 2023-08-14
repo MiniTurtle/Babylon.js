@@ -376,6 +376,13 @@ export class WebXRSessionManager implements IDisposable, IWebXRRenderTargetTextu
     }
 
     /**
+     * @internal
+     */
+    public _getBaseLayerWrapper(): Nullable<WebXRLayerWrapper> {
+        return this._baseLayerWrapper;
+    }
+
+    /**
      * Updates the render state of the session
      * @param state state to set
      */
@@ -481,5 +488,14 @@ export class WebXRSessionManager implements IDisposable, IWebXRRenderTargetTextu
         if (this._baseLayerWrapper) {
             this._baseLayerWrapper.fixedFoveation = val;
         }
+    }
+
+    /**
+     * Get the features enabled on the current session
+     * This is only available in-session!
+     * @see https://www.w3.org/TR/webxr/#dom-xrsession-enabledfeatures
+     */
+    public get enabledFeatures(): Nullable<string[]> {
+        return this.session?.enabledFeatures ?? null;
     }
 }
