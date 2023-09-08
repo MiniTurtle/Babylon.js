@@ -99,6 +99,7 @@ import { MatrixTransposeBlock } from "core/Materials/Node/Blocks/matrixTranspose
 import { CurveBlock } from "core/Materials/Node/Blocks/curveBlock";
 import { NodeMaterialTeleportInBlock } from "core/Materials/Node/Blocks/Teleport/teleportInBlock";
 import { NodeMaterialTeleportOutBlock } from "core/Materials/Node/Blocks/Teleport/teleportOutBlock";
+import { ReturnBlock } from "core/Materials/Node/Blocks/Fragment/returnBlock";
 
 export class BlockTools {
     public static GetBlockFromString(data: string, scene: Scene, nodeMaterial: NodeMaterial) {
@@ -144,7 +145,9 @@ export class BlockTools {
             case "MorphTargetsBlock":
                 return new MorphTargetsBlock("MorphTargets");
             case "DiscardBlock":
-                return new DiscardBlock("Discard");
+                return new DiscardBlock("Discard"); 
+            case "ReturnBlock":
+                return new ReturnBlock("Return");
             case "ImageProcessingBlock":
                 return new ImageProcessingBlock("ImageProcessing");
             case "ColorMergerBlock":

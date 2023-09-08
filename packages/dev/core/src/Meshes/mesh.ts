@@ -36,6 +36,7 @@ import { GetClass, RegisterClass } from "../Misc/typeStore";
 import { _WarnImport } from "../Misc/devTools";
 import { SceneComponentConstants } from "../sceneComponent";
 import { MeshLODLevel } from "./meshLODLevel";
+import { BoundingInfo } from "../Culling/boundingInfo";
 import type { Path3D } from "../Maths/math.path";
 import type { Plane } from "../Maths/math.plane";
 import type { TransformNode } from "./transformNode";
@@ -150,6 +151,73 @@ class _InternalMeshDataInfo {
 
     public _overrideRenderingFillMode: Nullable<number> = null;
 }
+
+export class MultiDrawInstance {
+    position = new Vector3();
+
+    get matrix() { return this._matrix; }
+    set matrix(value : Matrix) { 
+        this._matrix = value;
+        value.decompose(undefined, undefined, this.position);
+    }
+
+    _matrix : Matrix;
+    _previousWorldMatrix : Matrix;
+    _distanceToCamera : number;
+}
+
+export class MultiDrawInstanceData { 
+    indexStart = 0;
+    indexCount = 0;
+    _instanceDataStorage = new _InstanceDataStorage();
+    _userInstancedBuffersStorage: {
+        data: { [key: string]: Float32Array };
+        sizes: { [key: string]: number };
+        vertexBuffers: { [key: string]: Nullable<VertexBuffer> };
+        strides: { [key: string]: number };
+        vertexArrayObjects?: { [key: string]: WebGLVertexArrayObject };
+    };
+
+    _isVisibleThisFrame = false;
+
+    isAlwaysVisible = false;
+    boundingInfo : BoundingInfo;
+    _meshBoundMin : Vector3 = new Vector3(-1, -1, -1);
+    _meshBoundMax : Vector3 = Vector3.One();
+
+    instances : MultiDrawInstance[] = [];
+
+    public copyBoundingInfoFromMesh(mesh : Mesh) {
+        const info = mesh.getBoundingInfo();
+        this._meshBoundMin.copyFrom(info.minimum);
+        this._meshBoundMax.copyFrom(info.maximum);
+    }
+
+    public createInstance(matrix : Matrix): MultiDrawInstance {
+        const instance = new MultiDrawInstance();
+        instance.matrix = matrix;
+        this.instances.push(instance);
+
+        if (!this.boundingInfo)
+            this.boundingInfo = new BoundingInfo(this._meshBoundMin, this._meshBoundMax, matrix);
+        else
+            this.boundingInfo.encapsulateBoundingInfo(new BoundingInfo(this._meshBoundMin, this._meshBoundMax, matrix));
+
+        return instance;
+    };
+
+    public freeze() {
+        this._instanceDataStorage.isFrozen = true;
+    }
+    
+    public unfreeze() {
+        this._instanceDataStorage.isFrozen = false;
+    }
+
+    public dispose() {
+        this.instances.length = 0;
+    }
+};
 
 /**
  * Class used to represent renderable models
@@ -429,6 +497,8 @@ export class Mesh extends AbstractMesh implements IGetSetVerticesData {
 
     /** @internal */
     public _instanceDataStorage = new _InstanceDataStorage();
+    
+    public multiDraw : MultiDrawInstanceData [];
 
     /** @internal */
     public _thinInstanceDataStorage = new _ThinInstanceDataStorage();
@@ -1887,6 +1957,143 @@ export class Mesh extends AbstractMesh implements IGetSetVerticesData {
         return batchCache;
     }
 
+    static setupInstances(_scene : Scene, multiDraw : MultiDrawInstanceData, subMesh: SubMesh, engine: Engine) {
+        const visibleInstances = multiDraw.instances;
+        const visibleInstanceCount = visibleInstances ? visibleInstances.length : 0;
+
+        const instanceStorage = multiDraw._instanceDataStorage;
+
+        const currentInstancesBufferSize = instanceStorage.instancesBufferSize;
+        let instancesBuffer = instanceStorage.instancesBuffer;
+        let instancesPreviousBuffer = instanceStorage.instancesPreviousBuffer;
+        const matricesCount = visibleInstanceCount + 1;
+        const bufferSize = matricesCount * 16 * 4;
+
+        while (instanceStorage.instancesBufferSize < bufferSize) {
+            instanceStorage.instancesBufferSize *= 2;
+        }
+
+        if (!instanceStorage.instancesData || currentInstancesBufferSize != instanceStorage.instancesBufferSize) {
+            instanceStorage.instancesData = new Float32Array(instanceStorage.instancesBufferSize / 4);
+        }
+        if ((_scene.needsPreviousWorldMatrices && !instanceStorage.instancesPreviousData) || currentInstancesBufferSize != instanceStorage.instancesBufferSize) {
+            instanceStorage.instancesPreviousData = new Float32Array(instanceStorage.instancesBufferSize / 4);
+        }
+
+        let offset = 0;
+        let instancesCount = 0;
+
+        const needUpdateBuffer =
+            !instancesBuffer ||
+            currentInstancesBufferSize !== instanceStorage.instancesBufferSize ||
+            (_scene.needsPreviousWorldMatrices && !instanceStorage.instancesPreviousBuffer);
+
+        if (!instanceStorage.manualUpdate && (!instanceStorage.isFrozen || needUpdateBuffer)) {
+            if (visibleInstances) {
+                if (Mesh.INSTANCEDMESH_SORT_TRANSPARENT && _scene.activeCamera && subMesh.getMaterial()?.needAlphaBlendingForMesh(subMesh.getRenderingMesh())) {
+                    const cameraPosition = _scene.activeCamera.globalPosition;
+                    for (let instanceIndex = 0; instanceIndex < visibleInstances.length; instanceIndex++) {
+                        const instanceMesh = visibleInstances[instanceIndex];
+                        instanceMesh._distanceToCamera = Vector3.Distance(instanceMesh.position, cameraPosition);
+                    }
+                    visibleInstances.sort((m1, m2) => {
+                        return m1._distanceToCamera > m2._distanceToCamera ? -1 : m1._distanceToCamera < m2._distanceToCamera ? 1 : 0;
+                    });
+                }
+                for (let instanceIndex = 0; instanceIndex < visibleInstances.length; instanceIndex++) {
+                    const instance = visibleInstances[instanceIndex];
+                    const matrix = instance.matrix;
+                    matrix.copyToArray(instanceStorage.instancesData, offset);
+
+                    if (_scene.needsPreviousWorldMatrices) {
+                        if (!instance._previousWorldMatrix) {
+                            instance._previousWorldMatrix = matrix.clone();
+                            instance._previousWorldMatrix.copyToArray(instanceStorage.instancesPreviousData, offset);
+                        } else {
+                            instance._previousWorldMatrix.copyToArray(instanceStorage.instancesPreviousData, offset);
+                            instance._previousWorldMatrix.copyFrom(matrix);
+                        }
+                    }
+
+                    offset += 16;
+                    instancesCount++;
+                }
+            }
+        } else {
+            instancesCount = visibleInstanceCount;
+        }
+
+        if (needUpdateBuffer) {
+            if (instancesBuffer) {
+                instancesBuffer.dispose();
+            }
+
+            if (instancesPreviousBuffer) {
+                instancesPreviousBuffer.dispose();
+            }
+
+            instancesBuffer = new Buffer(engine, instanceStorage.instancesData, true, 16, false, true);
+            instanceStorage.instancesBuffer = instancesBuffer;
+            if (!multiDraw._userInstancedBuffersStorage) {
+                multiDraw._userInstancedBuffersStorage = {
+                    data: {},
+                    vertexBuffers: {},
+                    strides: {},
+                    sizes: {},
+                    vertexArrayObjects: _scene.getEngine().getCaps().vertexArrayObject ? {} : undefined,
+                };
+            }
+
+            multiDraw._userInstancedBuffersStorage.vertexBuffers["world0"] = instancesBuffer.createVertexBuffer("world0", 0, 4);
+            multiDraw._userInstancedBuffersStorage.vertexBuffers["world1"] = instancesBuffer.createVertexBuffer("world1", 4, 4);
+            multiDraw._userInstancedBuffersStorage.vertexBuffers["world2"] = instancesBuffer.createVertexBuffer("world2", 8, 4);
+            multiDraw._userInstancedBuffersStorage.vertexBuffers["world3"] = instancesBuffer.createVertexBuffer("world3", 12, 4);
+
+            if (_scene.needsPreviousWorldMatrices) {
+                instancesPreviousBuffer = new Buffer(engine, instanceStorage.instancesPreviousData, true, 16, false, true);
+                instanceStorage.instancesPreviousBuffer = instancesPreviousBuffer;
+
+                multiDraw._userInstancedBuffersStorage.vertexBuffers["previousWorld0"] = instancesPreviousBuffer.createVertexBuffer("previousWorld0", 0, 4);
+                multiDraw._userInstancedBuffersStorage.vertexBuffers["previousWorld1"] = instancesPreviousBuffer.createVertexBuffer("previousWorld1", 4, 4);
+                multiDraw._userInstancedBuffersStorage.vertexBuffers["previousWorld2"] = instancesPreviousBuffer.createVertexBuffer("previousWorld2", 8, 4);
+                multiDraw._userInstancedBuffersStorage.vertexBuffers["previousWorld3"] = instancesPreviousBuffer.createVertexBuffer("previousWorld3", 12, 4);
+            }
+
+            //
+            // _invalidateInstanceVertexArrayObject
+            //
+            if (!multiDraw._userInstancedBuffersStorage || multiDraw._userInstancedBuffersStorage.vertexArrayObjects === undefined) {
+                return;
+            }
+        
+            for (const kind in multiDraw._userInstancedBuffersStorage.vertexArrayObjects) {
+                _scene.getEngine().releaseVertexArrayObject(multiDraw._userInstancedBuffersStorage.vertexArrayObjects[kind]);
+            }
+        
+            multiDraw._userInstancedBuffersStorage.vertexArrayObjects = {};
+        } else {
+            if (!instanceStorage.isFrozen || instanceStorage.forceMatrixUpdates) {
+                instancesBuffer!.updateDirectly(instanceStorage.instancesData, 0, instancesCount);
+                if (_scene.needsPreviousWorldMatrices && (!instanceStorage.manualUpdate || instanceStorage.previousManualUpdate)) {
+                    instancesPreviousBuffer!.updateDirectly(instanceStorage.instancesPreviousData, 0, instancesCount);
+                }
+            }
+        }
+
+        // Write current matrices as previous matrices in case of manual update
+        // Default behaviour when previous matrices are not specified explicitly
+        // Will break if instances number/order changes
+        if (
+            _scene.needsPreviousWorldMatrices &&
+            !needUpdateBuffer &&
+            instanceStorage.manualUpdate &&
+            (!instanceStorage.isFrozen || instanceStorage.forceMatrixUpdates) &&
+            !instanceStorage.previousManualUpdate
+        ) {
+            instancesPreviousBuffer!.updateDirectly(instanceStorage.instancesData, 0, instancesCount);
+        }
+    }
+
     /**
      * @internal
      */
@@ -2051,15 +2258,15 @@ export class Mesh extends AbstractMesh implements IGetSetVerticesData {
      * @internal
      */
     public _renderWithThinInstances(subMesh: SubMesh, fillMode: number, effect: Effect, engine: Engine) {
-        // Stats
-        const instancesCount = this._thinInstanceDataStorage?.instancesCount ?? 0;
-
-        this.getScene()._activeIndices.addCount(subMesh.indexCount * instancesCount, false);
-
         // Draw
         if (engine._currentDrawContext) {
             engine._currentDrawContext.useInstancing = true;
         }
+
+        // Stats
+        const instancesCount = this._thinInstanceDataStorage?.instancesCount ?? 0;
+        this.getScene()._activeIndices.addCount(subMesh.indexCount * instancesCount, false);
+
         this._bind(subMesh, effect, fillMode);
         this._draw(subMesh, fillMode, instancesCount);
 
@@ -2102,12 +2309,66 @@ export class Mesh extends AbstractMesh implements IGetSetVerticesData {
         const engine = scene.getEngine();
         fillMode = this._getRenderingFillMode(fillMode);
 
+        if (hardwareInstancedRendering && this.multiDraw) {
+            //
+            // Multidraw
+            //
+            const scene = this.getScene();
+
+            // Draw
+            if (engine._currentDrawContext) {
+                engine._currentDrawContext.useInstancing = true;
+            }
+
+            for (const multiDraw of this.multiDraw) {
+                const { indexStart, indexCount, instances, _isVisibleThisFrame } = multiDraw;
+                if (!scene.skipFrustumClipping && !_isVisibleThisFrame && !this.alwaysSelectAsActiveMesh)
+                    continue;
+
+                const instancesCount = instances ? instances.length : 0;
+                if (!instancesCount)
+                    continue;
+
+                Mesh.setupInstances(scene, multiDraw, subMesh, engine);
+                if (!multiDraw._userInstancedBuffersStorage)
+                    continue;
+
+                // Wireframe
+                let indexToBind;
+                if (this._unIndexed) {
+                    indexToBind = null;
+                } else {
+                    switch (this._getRenderingFillMode(fillMode)) {
+                        case Material.PointFillMode:
+                            indexToBind = null;
+                            break;
+                        case Material.WireFrameFillMode:
+                            indexToBind = subMesh._getLinesIndexBuffer(<IndicesArray>this.getIndices(), engine);
+                            break;
+                        default:
+                        case Material.TriangleFillMode:
+                            indexToBind = this._geometry!.getIndexBuffer();
+                            break;
+                    }
+                }
+                this._geometry!._bind(effect, indexToBind, multiDraw._userInstancedBuffersStorage.vertexBuffers, multiDraw._userInstancedBuffersStorage.vertexArrayObjects);
+
+                scene._activeIndices.addCount(indexCount * instancesCount, false);
+
+                engine.drawElementsType(fillMode, indexStart, indexCount, instancesCount);
+            }
+
+            engine.unbindInstanceAttributes();
+            return this;
+        }
+
         if (hardwareInstancedRendering && subMesh.getRenderingMesh().hasThinInstances) {
             this._renderWithThinInstances(subMesh, fillMode, effect, engine);
             return this;
         }
 
         if (hardwareInstancedRendering) {
+            // Draw
             this._renderWithInstances(subMesh, fillMode, batch, effect, engine);
         } else {
             if (engine._currentDrawContext) {
@@ -2250,6 +2511,7 @@ export class Mesh extends AbstractMesh implements IGetSetVerticesData {
 
         const renderingMesh = subMesh.getRenderingMesh();
         const hardwareInstancedRendering =
+            this.multiDraw !== undefined ||
             batch.hardwareInstancedRendering[subMesh._id] ||
             renderingMesh.hasThinInstances ||
             (!!this._userInstancedBuffersStorage && !subMesh.getMesh()._internalAbstractMeshDataInfo._actAsRegularMesh);
@@ -2627,6 +2889,19 @@ export class Mesh extends AbstractMesh implements IGetSetVerticesData {
      * @returns true if the mesh is in the frustum planes
      */
     public isInFrustum(frustumPlanes: Plane[]): boolean {
+        if (this.multiDraw) {
+            for (const multiDraw of this.multiDraw) {
+                if (!multiDraw.boundingInfo) {
+                    multiDraw._isVisibleThisFrame = true;
+                    continue;
+                }
+
+                multiDraw._isVisibleThisFrame = multiDraw.isAlwaysVisible || multiDraw.boundingInfo.isInFrustum(frustumPlanes);
+            }
+
+            return true;
+        }
+
         if (this.delayLoadState === Constants.DELAYLOADSTATE_LOADING) {
             return false;
         }
@@ -2869,6 +3144,10 @@ export class Mesh extends AbstractMesh implements IGetSetVerticesData {
 
         if (this._internalMeshDataInfo._checkReadinessObserver) {
             this._scene.onBeforeRenderObservable.remove(this._internalMeshDataInfo._checkReadinessObserver);
+        }
+
+        if (this.multiDraw) {
+            this.multiDraw.length = 0;
         }
 
         super.dispose(doNotRecurse, disposeMaterialAndTextures);

@@ -372,7 +372,7 @@ export class VolumetricLightScatteringPostProcess extends PostProcess {
                 return;
             }
 
-            const hardwareInstancedRendering = engine.getCaps().instancedArrays && (batch.visibleInstances[subMesh._id] !== null || renderingMesh.hasThinInstances);
+            const hardwareInstancedRendering = engine.getCaps().instancedArrays && (renderingMesh.multiDraw != undefined || batch.visibleInstances[subMesh._id] !== null || renderingMesh.hasThinInstances);
 
             if (this._isReady(subMesh, hardwareInstancedRendering)) {
                 const renderingMaterial = effectiveMesh._internalAbstractMeshDataInfo._materialForRenderPass?.[engine.currentRenderPassId];

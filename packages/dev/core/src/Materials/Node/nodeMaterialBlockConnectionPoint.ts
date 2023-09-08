@@ -378,6 +378,15 @@ export class NodeMaterialConnectionPoint {
         return false;
     }
 
+    public getAllSourceConnections(result : NodeMaterialConnectionPoint[]) {
+        if (!this.sourceBlock)
+            return;
+        for (const input of this.sourceBlock.inputs) {
+            result.push(input);
+            input.getAllSourceConnections(result);
+        }
+    }
+
     /**
      * Creates a block suitable to be used as an input for this input point.
      * If null is returned, a block based on the point type will be created.

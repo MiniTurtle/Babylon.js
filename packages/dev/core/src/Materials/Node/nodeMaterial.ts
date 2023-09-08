@@ -205,6 +205,7 @@ export class NodeMaterial extends PushMaterial {
         return (
             block.getClassName() === "TextureBlock" ||
             block.getClassName() === "ReflectionTextureBaseBlock" ||
+            block.getClassName() === "ReflectionTextureBlock" ||
             block.getClassName() === "RefractionBlock" ||
             block.getClassName() === "CurrentScreenBlock" ||
             block.getClassName() === "ParticleTextureBlock" ||
@@ -831,6 +832,12 @@ export class NodeMaterial extends PushMaterial {
      * Runs an otpimization phase to try to improve the shader code
      */
     public optimize() {
+        for (const optimizer of this._vertexOutputNodes) {
+            optimizer.optimize(this._vertexOutputNodes);
+        }
+        for (const optimizer of this._fragmentOutputNodes) {
+            optimizer.optimize(this._fragmentOutputNodes);
+        }
         for (const optimizer of this._optimizers) {
             optimizer.optimize(this._vertexOutputNodes, this._fragmentOutputNodes);
         }

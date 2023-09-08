@@ -212,7 +212,7 @@ export class DepthRenderer {
 
             const hardwareInstancedRendering =
                 engine.getCaps().instancedArrays &&
-                ((batch.visibleInstances[subMesh._id] !== null && batch.visibleInstances[subMesh._id] !== undefined) || renderingMesh.hasThinInstances);
+                ((renderingMesh.multiDraw != undefined || batch.visibleInstances[subMesh._id] !== null && batch.visibleInstances[subMesh._id] !== undefined) || renderingMesh.hasThinInstances);
 
             const camera = this._camera || scene.activeCamera;
             if (this.isReady(subMesh, hardwareInstancedRendering) && camera) {

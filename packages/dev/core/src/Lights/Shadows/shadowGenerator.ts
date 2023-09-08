@@ -1185,7 +1185,7 @@ export class ShadowGenerator implements IShadowGenerator {
 
         const hardwareInstancedRendering =
             engine.getCaps().instancedArrays &&
-            ((batch.visibleInstances[subMesh._id] !== null && batch.visibleInstances[subMesh._id] !== undefined) || renderingMesh.hasThinInstances);
+            ((renderingMesh.multiDraw != undefined || batch.visibleInstances[subMesh._id] !== null && batch.visibleInstances[subMesh._id] !== undefined) || renderingMesh.hasThinInstances);
 
         if (this.customAllowRendering && !this.customAllowRendering(subMesh)) {
             return;

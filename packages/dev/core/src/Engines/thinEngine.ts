@@ -403,6 +403,7 @@ export class ThinEngine {
 
     /** @internal */
     public _gl: WebGL2RenderingContext;
+    public _multiDraw : WEBGL_multi_draw;
     /** @internal */
     public _webGLVersion = 1.0;
     protected _renderingCanvas: Nullable<HTMLCanvasElement>;
@@ -1351,6 +1352,13 @@ export class ThinEngine {
                 this._caps.instancedArrays = false;
             }
         }
+
+        // const multiDrawExtension = this._multiDraw = <WEBGL_multi_draw>this._gl.getExtension("WEBGL_multi_draw");
+        // if (multiDrawExtension != null) {
+        //     this._caps.multiDraw = true;
+        // } else {
+        //     this._caps.multiDraw = false;
+        // }
 
         if (this._gl.getShaderPrecisionFormat) {
             const vertexhighp = this._gl.getShaderPrecisionFormat(this._gl.VERTEX_SHADER, this._gl.HIGH_FLOAT);
@@ -2751,6 +2759,48 @@ export class ThinEngine {
         } else {
             this._gl.drawElements(drawMode, indexCount, indexFormat, indexStart * mult);
         }
+    }
+    
+    /**
+     * Draw a list of indexed primitives
+     * @param fillMode defines the primitive to use
+     * @param indexStart defines the starting index
+     * @param indexCount defines the number of index to draw
+     * @param instancesCount defines the number of instances to draw (if instantiation is enabled)
+     */
+    public multiDrawElementsType(
+        fillMode: number, 
+        countsList: Int32Array, 
+        countsOffset : number,
+        offsetsList : Int32Array,
+        offsetsOffset : number,
+        instanceCountsList : Int32Array,
+        instanceCountsOffset : number): void {
+        // Apply states
+        this.applyStates();
+
+        this._reportDrawCall();
+
+        // Render
+
+        const drawMode = this._drawMode(fillMode);
+        const indexFormat = this._uintIndicesCurrentlySet ? this._gl.UNSIGNED_INT : this._gl.UNSIGNED_SHORT;
+        // const mult = this._uintIndicesCurrentlySet ? 4 : 2;
+        this._multiDraw.multiDrawElementsInstancedWEBGL(
+            drawMode,
+            countsList,
+            countsOffset,
+            indexFormat,
+            offsetsList,
+            offsetsOffset,
+            instanceCountsList,
+            instanceCountsOffset,
+            countsList.length - countsOffset
+            );
+        // } else {
+        //     throw "Not implemented"
+        //     // this._gl.drawElements(drawMode, indexCount, indexFormat, indexStart * mult);
+        // }
     }
 
     /**

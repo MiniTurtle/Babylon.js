@@ -30,7 +30,7 @@ export class SubMesh implements ICullable {
     /** @internal */
     public _drawWrappers: Array<DrawWrapper>; // index in this array = pass id
     private _mainDrawWrapperOverride: Nullable<DrawWrapper> = null;
-
+    
     /**
      * Gets material defines used by the effect associated to the sub mesh
      */

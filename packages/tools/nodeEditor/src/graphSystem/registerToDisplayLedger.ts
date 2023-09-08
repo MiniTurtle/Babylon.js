@@ -6,6 +6,7 @@ import { RemapDisplayManager } from "./display/remapDisplayManager";
 import { TrigonometryDisplayManager } from "./display/trigonometryDisplayManager";
 import { TextureDisplayManager } from "./display/textureDisplayManager";
 import { DiscardDisplayManager } from "./display/discardDisplayManager";
+import { ReturnDisplayManager } from "./display/returnDisplayManager";
 import { PBRDisplayManager } from "./display/pbrDisplayManager";
 import { ConditionalDisplayManager } from "./display/conditionalDisplayManager";
 import { ImageSourceDisplayManager } from "./display/imageSourceDisplayManager";
@@ -34,6 +35,7 @@ export const RegisterToDisplayManagers = () => {
     DisplayLedger.RegisteredControls["TriPlanarBlock"] = TextureDisplayManager;
     DisplayLedger.RegisteredControls["BiPlanarBlock"] = TextureDisplayManager;
     DisplayLedger.RegisteredControls["DiscardBlock"] = DiscardDisplayManager;
+    DisplayLedger.RegisteredControls["ReturnBlock"] = ReturnDisplayManager;
     DisplayLedger.RegisteredControls["PBRMetallicRoughnessBlock"] = PBRDisplayManager;
     DisplayLedger.RegisteredControls["AnisotropyBlock"] = PBRDisplayManager;
     DisplayLedger.RegisteredControls["ClearCoatBlock"] = PBRDisplayManager;

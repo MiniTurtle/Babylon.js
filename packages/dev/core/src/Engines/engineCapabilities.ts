@@ -51,6 +51,8 @@ export interface EngineCapabilities {
     maxAnisotropy: number;
     /** Defines if instancing is supported */
     instancedArrays: boolean;
+    /** Defines if multi draw is supported */
+    // multiDraw: boolean;
     /** Defines if 32 bits indices are supported */
     uintIndices: boolean;
     /** Defines if high precision shaders are supported */

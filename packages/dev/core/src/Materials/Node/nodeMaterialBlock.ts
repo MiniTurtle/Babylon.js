@@ -206,6 +206,12 @@ export class NodeMaterialBlock {
     }
 
     /**
+     * optimize is run before nodeMaterial builds
+     */
+    public optimize(blocks : Array<NodeMaterialBlock>) {
+    }
+
+    /**
      * Initialize the block and prepare the context for build
      * @param state defines the state that will be used for the build
      */

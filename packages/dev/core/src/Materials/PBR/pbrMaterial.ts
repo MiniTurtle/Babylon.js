@@ -155,7 +155,7 @@ export class PBRMaterial extends PBRBaseMaterial {
      */
     @serialize()
     @expandToProperty("_markAllSubMeshesAsTexturesDirty")
-    public metallic: Nullable<number>;
+    public metallic: Nullable<number> = 1;
 
     /**
      * Specifies the roughness scalar of the metallic/roughness workflow.
@@ -163,7 +163,7 @@ export class PBRMaterial extends PBRBaseMaterial {
      */
     @serialize()
     @expandToProperty("_markAllSubMeshesAsTexturesDirty")
-    public roughness: Nullable<number>;
+    public roughness: Nullable<number> = 0;
 
     /**
      * In metallic workflow, specifies an F0 factor to help configuring the material F0.

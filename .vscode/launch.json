@@ -8,6 +8,16 @@
             /*
             Launch the playground to be use to test changes in dev packages
             */
+            "type": "chrome",
+            "request": "launch",
+            "name": "Run Chrome",
+            "url": "http://localhost:1338",
+            "webRoot": "${workspaceFolder}",
+        },
+        {
+            /*
+            Launch the playground to be use to test changes in dev packages
+            */
             "type": "pwa-msedge",
             "request": "launch",
             "name": "Run and Watch Dev Server (ES5-Dev)",
